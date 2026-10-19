@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RISC-V Learning Hub</title>
+  <meta name="description" content="Team-written guide to RISC-V and the PolarFire SoC Discovery Kit.">
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="assets/data.js"></script>
+  <script src="assets/app.js"></script>
+</head>
+<body data-page="home">
+  <section class="hero">
+    <div class="wrap">
+      <span class="eyebrow">PolarFire SoC · RISC-V · FPGA</span>
+      <h1>Learn RISC-V hardware, one block at a time.</h1>
+      <p class="lead">A team-written reference for the hardware inside the PolarFire SoC — from FPGA fabric to RISC-V cores — explained step by step so anyone on the team can pick it up.</p>
+      <div class="actions">
+        <a class="btn primary" href="#topics">Browse topics</a>
+        <a class="btn" href="page.html?s=notes&id=contributing">How to contribute</a>
+      </div>
+    </div>
+  </section>
+
+  <main class="wrap">
+    <div class="stats" id="stats"></div>
+
+    <section class="block" id="map">
+      <div class="section-head"><div><h2>The big picture</h2><p>What is inside the chip we are studying (simplified).</p></div></div>
+      <div class="diagram">
+        <svg viewBox="0 0 760 330" role="img" aria-label="Block diagram: PolarFire SoC with a RISC-V microprocessor subsystem connected to FPGA fabric through fabric interface controllers">
+          <rect class="d-box" x="4" y="4" width="752" height="322" rx="16"/>
+          <text class="d-sub" x="22" y="28">PolarFire SoC device</text>
+
+          <rect class="d-brand" x="24" y="44" width="340" height="262" rx="12"/>
+          <text class="d-text" x="42" y="72">Microprocessor Subsystem (MSS)</text>
+          <text class="d-sub" x="42" y="90">Hardened — fixed silicon</text>
+          <rect class="d-box" x="42" y="104" width="70" height="46" rx="8"/><text class="d-text" x="54" y="124">E51</text><text class="d-sub" x="54" y="141" font-size="11">monitor</text>
+          <rect class="d-box" x="118" y="104" width="54" height="46" rx="8"/><text class="d-text" x="129" y="132">U54</text>
+          <rect class="d-box" x="178" y="104" width="54" height="46" rx="8"/><text class="d-text" x="189" y="132">U54</text>
+          <rect class="d-box" x="238" y="104" width="54" height="46" rx="8"/><text class="d-text" x="249" y="132">U54</text>
+          <rect class="d-box" x="298" y="104" width="54" height="46" rx="8"/><text class="d-text" x="309" y="132">U54</text>
+          <rect class="d-box" x="42" y="164" width="312" height="34" rx="8"/><text class="d-sub" x="58" y="186">Coherent L2 cache / memory</text>
+          <rect class="d-box" x="42" y="208" width="150" height="34" rx="8"/><text class="d-sub" x="58" y="230">DDR controller</text>
+          <rect class="d-box" x="204" y="208" width="150" height="34" rx="8"/><text class="d-sub" x="220" y="230">Peripherals (UART…)</text>
+          <rect class="d-box" x="42" y="252" width="312" height="34" rx="8"/><text class="d-sub" x="58" y="274">Clocks &amp; resets</text>
+
+          <rect class="d-acc" x="470" y="44" width="262" height="262" rx="12"/>
+          <text class="d-text" x="488" y="72">FPGA Fabric</text>
+          <text class="d-sub" x="488" y="90">Programmable — we design this</text>
+          <rect class="d-box" x="488" y="110" width="110" height="40" rx="8"/><text class="d-sub" x="504" y="135">LUTs</text>
+          <rect class="d-box" x="606" y="110" width="110" height="40" rx="8"/><text class="d-sub" x="618" y="135">Flip-flops</text>
+          <rect class="d-box" x="488" y="164" width="228" height="40" rx="8"/><text class="d-sub" x="504" y="189">Routing (programmable wires)</text>
+          <rect class="d-box" x="488" y="218" width="228" height="68" rx="8"/><text class="d-sub" x="504" y="244">Our IP cores:</text><text class="d-sub" x="504" y="262">CoreUART · CoreI2C · CoreGPIO …</text>
+
+          <path class="d-line" d="M364 175 H470"/><path class="d-line" d="M364 195 H470"/>
+          <rect x="384" y="158" width="66" height="52" rx="8" fill="var(--surface)" stroke="var(--muted)"/>
+          <text class="d-text" x="400" y="181">FIC</text><text class="d-sub" x="393" y="198">bridges</text>
+        </svg>
+        <p class="caption">Software runs on the RISC-V cores in the MSS; custom hardware lives in the fabric. The FICs let the two talk. Confirm exact counts in the official datasheet.</p>
+      </div>
+    </section>
+
+    <section class="block" id="notes">
+      <div class="section-head"><div><h2>What we have learned so far</h2><p>Imported from our first study notes.</p></div></div>
+      <div class="grid" id="notes-grid"></div>
+    </section>
+
+    <section class="block" id="topics">
+      <div class="section-head"><div><h2>RISC-V topics</h2><p>Each topic has an owner. Owners write the page; everyone reads it.</p></div></div>
+      <div class="grid" id="topics-grid"></div>
+    </section>
+
+    <section class="block" id="cores">
+      <div class="section-head"><div><h2>Cores</h2><p>One page per core: what it does, how it works, how to use it.</p></div></div>
+      <div class="grid" id="cores-grid"></div>
+    </section>
+
+    <section class="block" id="projects">
+      <div class="section-head"><div><h2>Projects</h2><p>Hands-on work we have done in Libero.</p></div></div>
+      <div class="grid" id="projects-grid"></div>
+    </section>
+
+    <section class="block" id="team">
+      <div class="section-head"><div><h2>Team &amp; ownership</h2><p>Who is writing what.</p></div></div>
+      <div class="team" id="team-grid"></div>
+    </section>
+  </main>
+</body>
+</html>
