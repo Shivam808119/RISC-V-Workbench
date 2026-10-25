@@ -1,0 +1,888 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f6f8fc"><title>Side Channels &amp; Hardware Security — RISC-V Atlas</title><link rel="stylesheet" href="../assets/style.css"></head><body><header class="top"><button class="btn mobile" data-menu aria-label="Open navigation">☰</button><a class="brand" href="../index.html"><span class="mark">RV</span><span>RISC-V Atlas<small>Personal study workspace</small></span></a><div class="toplinks"><a href="../index.html">Overview</a><a href="../cores/index.html">Core directory</a><button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch color theme"><span class="theme-icon" data-theme-icon>☾</span><span class="theme-label" data-theme-label>Dark mode</span></button></div></header><div class="layout"><aside class="sidebar"><div class="side-label">Study workspace</div><a class="navitem" href="../index.html"><span class="sym">⌂</span>Overview</a><div class="side-label">Study topics</div><a class="navitem" href="pipelining.html"><span class="sym">⇢</span>Pipelining &amp; hazards</a><a class="navitem" href="out-of-order.html"><span class="sym">↗</span>Out-of-order &amp; superscalar</a><a class="navitem" href="memory.html"><span class="sym">▤</span>Memory systems</a><a class="navitem" href="interconnect.html"><span class="sym">⌘</span>On-chip interconnect</a><a class="navitem" href="interfaces.html"><span class="sym">⇄</span>Peripheral interfaces</a><a class="navitem" href="cores.html"><span class="sym">▣</span>RISC-V cores</a><a class="navitem" href="benchmarks.html"><span class="sym">▥</span>Benchmarks &amp; metrics</a><a class="navitem" href="security.html"><span class="sym">◇</span>Memory &amp; security</a><a class="navitem active" href="side-channels.html"><span class="sym">◉</span>Side channels &amp; hardware security</a><a class="navitem" href="libero.html"><span class="sym">⌁</span>Libero SoC flow</a><div class="side-label">Core directory</div><a class="navitem" href="../cores/index.html"><span class="sym">▦</span>10 core profiles</a></aside><main class="main"><div class="articlehead"><div class="crumb"><a href="../index.html">Overview</a> / Security</div><div class="eyebrow">Security · detailed study notes</div><h1>Side Channels &amp; Hardware Security</h1><p class="lead">Detailed study notes from your README, organized as a dedicated topic page with diagrams, examples, glossary and self-test.</p><div class="tags"><span class="tag study">Imported from your README</span><span class="tag focus">Detailed reference</span></div></div><article class="content markdown-notes"><h1>Side Channels &amp; Hardware Security</h1>
+<h3>Study Notes --- simple explanations, diagrams, examples, and revision questions</h3>
+<blockquote>
+<p><strong>Core idea:</strong> A program can calculate the correct answer and still
+leak a secret through <em>how</em> the computer performs the calculation.</p>
+</blockquote>
+<p>These notes follow the structure and terminology of the <strong>&quot;Side Channels
+&amp; Hardware Security&quot;</strong> slide deck you studied. Explanations are
+intentionally simple, with examples and a RISC-V/FPGA connection near
+the end. The diagrams in <code>images/</code> are original conceptual diagrams;
+they are not measurements from a real chip.</p>
+<h2>Contents</h2>
+<ol>
+<li><a href="#1-learning-goals">Learning goals</a></li>
+<li><a href="#2-what-is-a-side-channel">What is a side channel?</a></li>
+<li><a href="#3-side-channel-vs-covert-channel">Side channel vs covert channel</a></li>
+<li><a href="#4-timing-attacks-early-exit">Timing attacks: early exit</a></li>
+<li><a href="#5-constant-time-code">Constant-time code</a></li>
+<li><a href="#6-cache-timing-attacks">Cache-timing attacks</a></li>
+<li><a href="#7-three-classic-cache-techniques">Three classic cache techniques</a></li>
+<li><a href="#8-flushreload-conceptually">Flush+Reload, conceptually</a></li>
+<li><a href="#9-spectre-meltdown-and-transient-execution">Spectre, Meltdown, and transient
+execution</a></li>
+<li><a href="#10-power-analysis-spa-dpa-cpa">Power analysis: SPA, DPA, CPA</a></li>
+<li><a href="#11-fault-injection">Fault injection</a></li>
+<li><a href="#12-other-shared-state-channels-and-rowhammer">Other shared-state channels and
+Rowhammer</a></li>
+<li><a href="#13-the-defensive-toolbox-and-its-costs">The defensive toolbox and its
+costs</a></li>
+<li><a href="#14-the-big-lesson">The big lesson</a></li>
+<li><a href="#15-glossary">Glossary</a></li>
+<li><a href="#16-self-test-with-answers">Self-test with answers</a></li>
+<li><a href="#17-connection-to-risc-v-and-fpga-work">Connection to RISC-V and FPGA
+work</a></li>
+</ol>
+<hr />
+<h2>1. Learning goals</h2>
+<p>After studying these notes, you should be able to:</p>
+<ul>
+<li>Explain side channels and distinguish them from covert channels.</li>
+<li>Explain why an early-exit comparison can leak timing information.</li>
+<li>Describe the goal and limitations of constant-time code.</li>
+<li>Explain cache hits, misses, and the basic idea behind cache-timing
+attacks.</li>
+<li>Compare Flush+Reload, Prime+Probe, and Evict+Time.</li>
+<li>Explain transient execution and the basic ideas behind Spectre and
+Meltdown.</li>
+<li>Recognise power analysis, fault injection,
+branch-predictor/TLB/execution-port leakage, and Rowhammer.</li>
+<li>Name important defenses and explain their performance or
+implementation costs.</li>
+</ul>
+<h2>2. What is a side channel?</h2>
+<p>A <strong>side channel</strong> is an unintended observable signal that reveals
+information a program did not mean to expose. The attacker does not
+necessarily break the cryptographic algorithm; they observe the machine
+while it runs the algorithm.</p>
+<p>Common signals include:</p>
+<ul>
+<li><strong>Time:</strong> how long an operation takes.</li>
+<li><strong>Power consumption:</strong> how much electrical power the chip uses.</li>
+<li><strong>Electromagnetic (EM) radiation:</strong> signals emitted by electrical
+activity.</li>
+<li><strong>Cache state:</strong> which data may be present in a processor cache.</li>
+<li><strong>Other shared hardware state:</strong> for example, branch-predictor or
+TLB state.</li>
+</ul>
+<h3>Analogy: listening to a lock</h3>
+<p>A safe may be mathematically well designed, but tiny clicks while its
+mechanism moves could reveal clues. Similarly, software can keep a
+secret out of its output while the hardware's behavior gives away
+information.</p>
+<p><img src="../assets/security-diagrams/side-channel-flow.svg" alt="How a side channel leaks" /></p>
+<h3>Two questions to ask about every attack</h3>
+<ol>
+<li><strong>What signal depends on the secret?</strong> Timing, cache state, power,
+EM radiation, or something else?</li>
+<li><strong>What can the attacker measure?</strong> Can they run code on the same
+machine, share a cache, or physically hold and measure the device?</li>
+</ol>
+<p>A side channel does not automatically mean the attack succeeds. The
+attacker needs access to a measurable signal, and the signal must reveal
+enough information despite noise and other activity.</p>
+<h2>3. Side channel vs covert channel</h2>
+<hr />
+<pre><code>                      Side channel            Covert channel</code></pre>
+<p>----------------------- ----------------------- -----------------------
+<strong>Intent</strong>              Unintended leakage      Deliberate
+communication</p>
+<p><strong>Parties</strong>             An unaware victim and   Two cooperating or
+an observer/attacker    colluding programs</p>
+<p><strong>Goal</strong>                Infer a secret from the Send information
+victim's behavior       through a path not
+intended for
+communication</p>
+<h2><strong>Example</strong>             Measuring encryption    Two isolated programs
+timing to infer key     deliberately encode and
+information             decode bits using cache
+activity</h2>
+<p><strong>&quot;Deliberate&quot;</strong> means done on purpose. <strong>&quot;Sneak data past an isolation
+rule&quot;</strong> means communicate information even though the system's normal
+rules are meant to keep the programs separated.</p>
+<p>The same physical effect can sometimes be used in different ways. A
+cache timing difference may leak information unintentionally, or two
+cooperating programs may intentionally use cache patterns to
+communicate.</p>
+<h2 id="timing-attacks">4. Timing attacks: early exit</h2>
+<p>A timing attack uses differences in execution time to infer information.</p>
+<p>The slide's example is a comparison function that stops as soon as it
+finds a mismatch:</p>
+<pre><code class="language-c">// LEAKY: returns as soon as one byte differs
+bool compare(const uint8_t *a, const uint8_t *b, size_t n) {
+    for (size_t i = 0; i &lt; n; i++)
+        if (a[i] != b[i]) return false;  // stops early
+    return true;
+}
+</code></pre>
+<h3>Why is it leaky?</h3>
+<p>Suppose the expected secret is <code>CAT</code>:</p>
+<p>Guess   What happens                         Relative work</p>
+<hr />
+<p><code>DOG</code>   First byte differs                   Stops quickly
+<code>COW</code>   First byte matches; second differs   Does more work
+<code>CAR</code>   First two match; third differs       Does still more work</p>
+<p>The exact times may be tiny and noisy. But if the attacker can repeat
+measurements, a consistent timing difference can reveal how many initial
+bytes matched.</p>
+<h3>Why does the slide say 4,096 tries?</h3>
+<p>One byte has (2^8 = 256) possible values. If a timing leak allows the
+attacker to infer the secret one byte at a time, a simplified upper
+estimate for trying each byte is:</p>
+<p>[ 16 <code>\times 256</code>{=tex} = 4096 ]</p>
+<p>for a 16-byte secret.</p>
+<p>By contrast, guessing every 16-byte value at once gives:</p>
+<p>[ 256^{16} = 2^{128} ]</p>
+<p>possibilities. That is vastly larger. The 4,096 figure is a simplified
+candidate count, not a guarantee of the total measurements required in a
+real attack.</p>
+<p><img src="../assets/security-diagrams/timing-compare.svg" alt="Early exit vs constant-time comparison" /></p>
+<h2>5. Constant-time code</h2>
+<p><strong>Constant-time code</strong> aims to make observable execution behavior
+independent of secret values, especially execution time. It avoids early
+exits, secret-dependent branches, secret-dependent memory addresses, and
+variable-speed operations on secrets.</p>
+<p>The slide gives this example:</p>
+<pre><code class="language-c">// CONSTANT-TIME AIM: inspect every byte and collect differences
+bool ct_equal(const uint8_t *a, const uint8_t *b, size_t n) {
+    uint8_t diff = 0;
+    for (size_t i = 0; i &lt; n; i++)
+        diff |= a[i] ^ b[i];  // collect differences; do not stop early
+    return diff == 0;
+}
+</code></pre>
+<h3>How does it work?</h3>
+<ul>
+<li><code>a[i] ^ b[i]</code> is bitwise XOR. Matching bits produce 0; differing
+bits produce 1.</li>
+<li><code>diff |= ...</code> combines the difference information. Once a difference
+is recorded, it remains recorded.</li>
+<li>The loop checks every byte, then returns <code>true</code> only if <code>diff</code> is
+zero.</li>
+</ul>
+<h3>Three rules from the slide</h3>
+<ol>
+<li><strong>No branches depending on secret data.</strong> A secret should not decide
+between a fast path and a slow path.</li>
+<li><strong>No memory addresses computed from secrets.</strong> Avoid patterns such
+as <code>table[secret]</code>, because the selected cache line may reveal
+information.</li>
+<li><strong>Avoid variable-speed instructions on secrets.</strong> Some instructions
+can take different amounts of time depending on their operands on
+particular processors.</li>
+</ol>
+<blockquote>
+<p><strong>Important limitation:</strong> C code that looks constant-time is not a
+universal guarantee. Compiler transformations and the target processor
+matter, so generated machine code and platform behavior must be
+reviewed.</p>
+</blockquote>
+<p>&quot;Fast on average&quot; is not enough. A predictable difference that depends
+on a secret may be the leak.</p>
+<h2 id="cache-attacks">6. Cache-timing attacks</h2>
+<p>A <strong>cache</strong> is a small, fast memory that keeps copies of recently or
+frequently used data. It helps the CPU avoid waiting for slower memory.</p>
+<ul>
+<li><strong>Cache hit:</strong> requested data is already in the relevant cache;
+access is usually faster.</li>
+<li><strong>Cache miss:</strong> data is absent from that cache level; the processor
+must fetch it from another level or memory, which is usually slower.</li>
+<li><strong>Cache line:</strong> a block of memory moved into or stored in the cache
+together.</li>
+</ul>
+<p>The slide illustrates about <strong>40 cycles</strong> for a hit and <strong>300 cycles</strong>
+for a miss. These are illustrative values from the slide, not universal
+measurements; actual timings depend on the processor and memory
+hierarchy.</p>
+<p><img src="../assets/security-diagrams/cache-hit-miss.svg" alt="Cache hit versus cache miss timing" /></p>
+<h3>How can this leak a secret?</h3>
+<ol>
+<li>A victim program accesses different memory locations depending on a
+secret.</li>
+<li>Those accesses change the state of a cache shared with another
+execution context.</li>
+<li>The attacker times their own accesses.</li>
+<li>The timing pattern may reveal which cache lines or sets the victim
+used.</li>
+</ol>
+<p>The victim does not have to contain a conventional software bug. The
+risk comes from the behavior of shared hardware resources. However,
+sharing a machine alone does not guarantee that an attack is possible or
+successful.</p>
+<p>Caches are allowed to change execution speed while preserving the
+architectural result. Timing is generally not fixed by the
+instruction-set architecture (ISA).</p>
+<h2>7. Three classic cache techniques</h2>
+<h3>7.1 Flush+Reload</h3>
+<p><strong>Requires shared memory</strong> with the victim, so both can access the same
+underlying cache line.</p>
+<ol>
+<li><strong>Flush:</strong> Remove a chosen cache line from the cache.</li>
+<li><strong>Wait:</strong> Let the victim run.</li>
+<li><strong>Reload and time:</strong> Access that line again and measure how long it
+takes.</li>
+</ol>
+<p>A fast reload suggests the line may have been brought back into the
+cache---possibly because the victim accessed it. Other activity can
+affect the measurement.</p>
+<h3>7.2 Prime+Probe</h3>
+<p><strong>Does not require shared memory.</strong> It relies on contention in a cache
+set.</p>
+<ol>
+<li><strong>Prime:</strong> Fill a cache set with the attacker's own cache lines.</li>
+<li><strong>Wait:</strong> Let the victim run.</li>
+<li><strong>Probe:</strong> Access the attacker's lines again and measure the time.</li>
+</ol>
+<p>If the victim used the same cache set, some attacker lines may have been
+evicted, making the re-access slower.</p>
+<h3>7.3 Evict+Time</h3>
+<p>Measures the <strong>victim's total runtime</strong> rather than reloading a specific
+shared line.</p>
+<ol>
+<li>Time the victim.</li>
+<li>Evict data from a chosen cache set.</li>
+<li>Run and time the victim again.</li>
+<li>A slower run may suggest the victim depends on data associated with
+that set.</li>
+</ol>
+<p>This is a coarser signal because many factors affect total execution
+time.</p>
+<hr />
+<p>Technique               What is timed?          Key requirement</p>
+<hr />
+<p>Flush+Reload            Reload of a particular  Shared memory
+cache line</p>
+<p>Prime+Probe             Attacker's own cache    Cache-set contention
+accesses</p>
+<h2>Evict+Time              Victim's whole          Ability to evict cache
+execution               data and time the
+victim</h2>
+<h2>8. Flush+Reload, conceptually</h2>
+<p>The slide includes a simulated conceptual exercise; it does not require
+real measurement.</p>
+<p>The logic is:</p>
+<ol>
+<li>Flush a chosen line.</li>
+<li>Allow a victim operation to happen.</li>
+<li>Reload and time the line.</li>
+<li>Interpret a relatively fast reload as evidence that the line may
+have been accessed.</li>
+</ol>
+<p>This is an inference, not certainty. Real measurements contain noise,
+and other programs may also affect cache state.</p>
+<h2>9. Spectre, Meltdown, and transient execution</h2>
+<h3>9.1 What is speculation?</h3>
+<p>Modern processors may start work based on a prediction before a
+condition or earlier instruction has fully resolved. This helps
+performance.</p>
+<p>If the prediction was wrong, the processor can discard the speculative
+results. But some microarchitectural effects, such as cache changes, can
+remain.</p>
+<p><strong>Transient execution</strong> is work performed in the short period before the
+processor discovers that the path should not have been taken and
+discards its architectural results.</p>
+<p>The slide's key phrase is:</p>
+<blockquote>
+<p><strong>Speculation deletes the result, but not the footprint.</strong></p>
+</blockquote>
+<p><img src="../assets/security-diagrams/spectre-flow.svg" alt="Transient execution and Spectre" /></p>
+<h3>9.2 Spectre, conceptually</h3>
+<p>The slide describes this sequence:</p>
+<ol>
+<li><strong>Train:</strong> Repeated valid inputs teach the branch predictor to
+expect an in-bounds condition.</li>
+<li><strong>Mislead:</strong> An unusual out-of-bounds input arrives, but the
+predictor initially guesses that the condition will pass.</li>
+<li><strong>Transient access:</strong> Before the check resolves, speculative work
+may access a secret and use it to touch a cache line.</li>
+<li><strong>Squash:</strong> The processor discards the speculative results when it
+discovers the misprediction.</li>
+<li><strong>Measure:</strong> An attacker measures cache timing to infer which line
+was touched.</li>
+</ol>
+<p>This is a conceptual explanation of the information flow, not an exploit
+recipe. Actual Spectre variants depend on the processor, code, and
+available measurements.</p>
+<h3>9.3 Spectre vs Meltdown</h3>
+<hr />
+<pre><code>                      Spectre                 Meltdown (as described
+                                              in the slide)</code></pre>
+<p>----------------------- ----------------------- -----------------------
+<strong>Root cause</strong>          Mistrained branch       A load's value is used
+prediction and          transiently before a
+speculative execution   permission fault takes
+effect</p>
+<p><strong>Boundary involved</strong>   A software bounds or    User/kernel privilege
+type check              boundary</p>
+<p><strong>Information           The victim's own memory Kernel memory from a
+targeted</strong>              in the slide's          user program on
+comparison              affected systems</p>
+<p><strong>How information is    Cache timing, such as   Cache timing, such as
+carried out</strong>           Flush+Reload or         Flush+Reload
+Prime+Probe</p>
+<h2><strong>Mitigations shown</strong>   Speculation fences,     Kernel page-table
+retpolines, masked      isolation (KPTI) and
+indices                 fixed chips</h2>
+<p>The slide also names related research and attack families: <strong>Foreshadow,
+RIDL, ZombieLoad, and Retbleed</strong>. These are related to transient
+execution or speculative microarchitectural behavior, but their precise
+mechanisms differ.</p>
+<h2>10. Power analysis: SPA, DPA, CPA</h2>
+<p>A chip's electrical activity changes while it computes. Its power
+consumption---and sometimes its electromagnetic emissions---can depend
+on the data being processed. Measuring these signals can reveal the
+outline of a computation.</p>
+<h3>10.1 Simple Power Analysis (SPA)</h3>
+<p>SPA looks for recognizable patterns in a single power trace.</p>
+<p>The slide's simplified RSA example says a key bit of <code>1</code> may cause an
+extra multiplication, producing an extra bump in the trace. If
+operations are visibly distinguishable, the pattern may reveal
+information about the secret exponent.</p>
+<p>This is an illustration, not a universal rule for every implementation.</p>
+<h3>10.2 Differential Power Analysis (DPA)</h3>
+<p>DPA uses statistical comparisons across many power traces. It tries to
+detect small, repeatable differences related to a secret-dependent
+computation that may be hidden by noise in an individual trace.</p>
+<h3>10.3 Correlation Power Analysis (CPA)</h3>
+<p>CPA predicts power-related behavior for candidate secret values and
+checks which prediction correlates with recorded traces. A stronger
+correlation can help identify the correct key hypothesis.</p>
+<hr />
+<p>Method                              Simple description</p>
+<hr />
+<p>SPA                                 Recognise a pattern in a trace</p>
+<p>DPA                                 Compare groups/statistics across
+many traces</p>
+<h2>CPA                                 Compare predicted power models with
+measured traces using correlation</h2>
+<h3>Defense shown in the slide</h3>
+<p>Make the <strong>sequence of operations independent of the key</strong>. For example,
+always perform a multiplication and then keep or discard the result as
+appropriate, rather than making the operation itself depend visibly on a
+secret bit.</p>
+<p>This can reduce operation-pattern leakage, but does not guarantee
+constant power. Data-dependent switching may still leak.</p>
+<h2>11. Fault injection</h2>
+<p><strong>Fault injection</strong> (also called glitching in this context) deliberately
+disturbs hardware so that it may compute incorrectly.</p>
+<p>The slide lists these disturbances:</p>
+<ul>
+<li>Brief dip in supply voltage.</li>
+<li>A clock pulse that is too short.</li>
+<li>An electromagnetic pulse.</li>
+<li>A laser directed at an exposed chip die.</li>
+</ul>
+<h3>What could go wrong?</h3>
+<p><strong>Example A: Skipping a signature check</strong></p>
+<p>A device normally checks a digital signature before booting. A
+well-timed fault might cause the check or its branch to be skipped or
+corrupted, potentially allowing software to run without proper
+verification.</p>
+<p><strong>Example B: Corrupting a cipher step</strong></p>
+<p>A fault may corrupt one step of a cryptographic calculation. In some
+vulnerable implementations, comparing correct and faulty outputs can
+reveal information about a key.</p>
+<h3>Defenses from the slide</h3>
+<ul>
+<li>Perform important checks twice and compare results.</li>
+<li>Use sensors to detect abnormal operating conditions.</li>
+<li>Randomise timing to make precise fault timing harder.</li>
+<li>Use error-detecting arithmetic.</li>
+</ul>
+<p>Repeated checks are not automatically safe if the same fault can affect
+both checks. These attacks often require physical access and specialised
+equipment, but the exact requirements vary.</p>
+<h2>12. Other shared-state channels and Rowhammer</h2>
+<hr />
+<p>Component               Shared resource/state   What may be exposed or
+affected</p>
+<hr />
+<p><strong>Branch predictor</strong>    Prediction tables       Victim branch
+directions; can be
+involved in Spectre</p>
+<p><strong>TLB</strong>                 Translation cache       Which memory pages the
+victim uses</p>
+<p><strong>Execution ports</strong>     Execution units shared  Which kinds of
+by SMT threads          instructions a sibling
+thread runs, inferred
+through contention</p>
+<h2><strong>DRAM rows</strong>           Physical memory cells   Rowhammer can corrupt
+bits; this is a fault,
+not merely an
+information leak</h2>
+<h3>Branch predictor</h3>
+<p>The CPU guesses whether a branch will be taken. Shared predictor state
+may create measurable timing differences or be manipulated in attacks
+such as Spectre.</p>
+<h3>TLB</h3>
+<p>The <strong>Translation Lookaside Buffer (TLB)</strong> caches recent
+virtual-to-physical address translations. Timing may reveal which pages
+have recently been used.</p>
+<h3>Execution ports and SMT</h3>
+<p><strong>SMT</strong> means Simultaneous Multithreading. Multiple hardware threads can
+run on one physical core while sharing some execution resources. One
+thread's activity can slow another, and the timing difference may leak
+information about the sibling thread's work.</p>
+<h3>Rowhammer</h3>
+<p>DRAM stores data in physical memory cells arranged in rows. Repeatedly
+accessing one row can, on susceptible memory systems, disturb nearby
+rows and flip stored bits---even though the accesses themselves are
+legal.</p>
+<p>Rowhammer has been used to corrupt important structures such as page
+tables.</p>
+<p><strong>Defenses listed:</strong> targeted refresh, error-correcting memory (ECC),
+and guard rows. Effectiveness depends on the memory and system
+implementation.</p>
+<h2 id="defenses">13. The defensive toolbox and its costs</h2>
+<p>No single fix handles every channel. The slide lists layered defenses:</p>
+<hr />
+<p>Defense               Who applies it?   Intended          Cost or trade-off
+protection</p>
+<hr />
+<p><strong>Constant-time       Programmers       Timing and        Careful coding
+code</strong>                                  cache-timing      and review
+leakage</p>
+<p><strong>Cache               Hardware and OS   Reduces cache     Less cache
+partitioning</strong>                          interference used available per
+by Prime+Probe    program
+and some<br />
+Flush+Reload<br />
+scenarios</p>
+<p><strong>Flushing at         OS and hardware   Reduces leftover  Cold caches after
+switches</strong>                              shared state      switches</p>
+<p><strong>Speculation         Compiler and      Certain Spectre   Can stall the
+fences</strong>              programmer        patterns,         pipeline
+including<br />
+bounds-check<br />
+cases</p>
+<p><strong>Retpolines and      Compiler          Certain Spectre   Can slow indirect
+index masking</strong>                         variants          jumps or add
+instructions</p>
+<p><strong>Kernel page-table   OS                Meltdown on       Can make system
+isolation (KPTI)</strong>                      affected systems  calls slower</p>
+<p><strong>Masking and         Hardware and      Power and         Additional area
+hiding</strong>              cryptography      radiation         and power
+engineers         analysis</p>
+<h2><strong>SMT off for         OS/system         Shared            Fewer available
+unrelated/untrusted   configuration     execution-port    hardware threads
+workloads</strong>                             contention</h2>
+<p>The exact protection and cost depend on the specific CPU, OS, compiler,
+and implementation. These are mitigations for particular threat models,
+not universal guarantees.</p>
+<p><img src="../assets/security-diagrams/defense-layers.svg" alt="Layered hardware security defenses" /></p>
+<h2>14. The big lesson</h2>
+<h3>&quot;The feature is the leak&quot;</h3>
+<p>The performance features that make processors fast can also create side
+channels:</p>
+<ul>
+<li><strong>Caches</strong> are useful because recently used data can be reused
+quickly; shared state may reveal what was accessed.</li>
+<li><strong>Speculation</strong> makes progress before correctness is fully known;
+transient work can leave microarchitectural traces.</li>
+<li><strong>SMT</strong> lets threads share execution resources; contention may
+reveal another thread's activity.</li>
+</ul>
+<p>Security must be designed in. Isolation, constant-time behavior, and the
+option to disable or restrict sharing should be considered during system
+design, rather than added only after a leak is found.</p>
+<p>The slide says a chip that never speculated and shared nothing might
+avoid these channels but could be 5--10× slower. Treat that as the
+deck's illustrative point about performance trade-offs, not a universal
+benchmark.</p>
+<h3>Important misconception</h3>
+<blockquote>
+<p>&quot;If the maths is secure, the chip is secure.&quot;</p>
+</blockquote>
+<p>Not necessarily. Cryptographic security proofs often model a system in
+terms of inputs and outputs, while real hardware can also expose timing,
+power, and shared state.</p>
+<p>AES-256 is a strong algorithm, but a table-based AES implementation can
+leak key information through cache behavior. The algorithm and its
+implementation must both be considered.</p>
+<h2>15. Glossary</h2>
+<hr />
+<p>Term                                Simple meaning</p>
+<hr />
+<p><strong>ISA</strong>                             The instruction-set architecture:
+the defined behavior of machine
+instructions</p>
+<p><strong>Microarchitecture</strong>               How a particular processor
+implements the ISA internally</p>
+<p><strong>Side channel</strong>                    An unintended signal that leaks
+information</p>
+<p><strong>Covert channel</strong>                  A deliberately used hidden
+communication path</p>
+<p><strong>Cache hit/miss</strong>                  Data found/not found in the
+relevant cache level</p>
+<p><strong>Cache line</strong>                      A block of data stored or
+transferred by a cache</p>
+<p><strong>Constant-time code</strong>              Code designed to avoid
+secret-dependent timing differences</p>
+<p><strong>Transient execution</strong>             Work performed speculatively before
+the processor resolves whether it
+should stand</p>
+<p><strong>SMT</strong>                             Simultaneous Multithreading;
+multiple hardware threads share a
+physical core</p>
+<p><strong>TLB</strong>                             Cache for address translations</p>
+<p><strong>SPA</strong>                             Simple Power Analysis</p>
+<p><strong>DPA</strong>                             Differential Power Analysis</p>
+<p><strong>CPA</strong>                             Correlation Power Analysis</p>
+<p><strong>Fault injection</strong>                 Deliberately disturbing hardware to
+cause errors</p>
+<p><strong>Rowhammer</strong>                       DRAM disturbance that can flip bits
+in nearby rows</p>
+<h2><strong>KPTI</strong>                            Kernel Page-Table Isolation</h2>
+<h2>16. Self-test with answers</h2>
+<p>Try to answer each question before opening its answer.</p>
+<pre><code class="language-{=html}">&lt;details&gt;
+</code></pre>
+<pre><code class="language-{=html}">&lt;summary&gt;
+</code></pre>
+<p><code>&lt;strong&gt;</code>{=html}1. Why can a correct encryption program still leak a
+key?<code>&lt;/strong&gt;</code>{=html}</p>
+<pre><code class="language-{=html}">&lt;/summary&gt;
+</code></pre>
+<p>Because its timing, cache behavior, power consumption, or other
+observable hardware state may depend on the secret.</p>
+<pre><code class="language-{=html}">&lt;/details&gt;
+</code></pre>
+<pre><code class="language-{=html}">&lt;details&gt;
+</code></pre>
+<pre><code class="language-{=html}">&lt;summary&gt;
+</code></pre>
+<p><code>&lt;strong&gt;</code>{=html}2. What is the difference between a side channel and a
+covert channel?<code>&lt;/strong&gt;</code>{=html}</p>
+<pre><code class="language-{=html}">&lt;/summary&gt;
+</code></pre>
+<p>A side channel is unintended leakage from a victim's behavior. A covert
+channel is deliberately used by cooperating parties to communicate
+through a path not intended for that purpose.</p>
+<pre><code class="language-{=html}">&lt;/details&gt;
+</code></pre>
+<pre><code class="language-{=html}">&lt;details&gt;
+</code></pre>
+<pre><code class="language-{=html}">&lt;summary&gt;
+</code></pre>
+<p><code>&lt;strong&gt;</code>{=html}3. Why is an early-exit comparison
+risky?<code>&lt;/strong&gt;</code>{=html}</p>
+<pre><code class="language-{=html}">&lt;/summary&gt;
+</code></pre>
+<p>It stops at the first mismatch, so the execution time may reveal how
+many initial bytes matched.</p>
+<pre><code class="language-{=html}">&lt;/details&gt;
+</code></pre>
+<pre><code class="language-{=html}">&lt;details&gt;
+</code></pre>
+<pre><code class="language-{=html}">&lt;summary&gt;
+</code></pre>
+<p><code>&lt;strong&gt;</code>{=html}4. What does constant-time comparison try to
+achieve?<code>&lt;/strong&gt;</code>{=html}</p>
+<pre><code class="language-{=html}">&lt;/summary&gt;
+</code></pre>
+<p>It checks all bytes rather than stopping at the first mismatch, aiming
+to prevent timing from revealing the mismatch position.</p>
+<pre><code class="language-{=html}">&lt;/details&gt;
+</code></pre>
+<pre><code class="language-{=html}">&lt;details&gt;
+</code></pre>
+<pre><code class="language-{=html}">&lt;summary&gt;
+</code></pre>
+<p><code>&lt;strong&gt;</code>{=html}5. What is the main difference between Flush+Reload and
+Prime+Probe?<code>&lt;/strong&gt;</code>{=html}</p>
+<pre><code class="language-{=html}">&lt;/summary&gt;
+</code></pre>
+<p>Flush+Reload uses a cache line backed by shared memory. Prime+Probe uses
+contention in a cache set and does not require the same memory to be
+shared.</p>
+<pre><code class="language-{=html}">&lt;/details&gt;
+</code></pre>
+<pre><code class="language-{=html}">&lt;details&gt;
+</code></pre>
+<pre><code class="language-{=html}">&lt;summary&gt;
+</code></pre>
+<p><code>&lt;strong&gt;</code>{=html}6. What survives after Spectre's wrong-path work is
+discarded?<code>&lt;/strong&gt;</code>{=html}</p>
+<pre><code class="language-{=html}">&lt;/summary&gt;
+</code></pre>
+<p>Architectural results are discarded, but microarchitectural effects such
+as cache state may remain and can sometimes be measured.</p>
+<pre><code class="language-{=html}">&lt;/details&gt;
+</code></pre>
+<pre><code class="language-{=html}">&lt;details&gt;
+</code></pre>
+<pre><code class="language-{=html}">&lt;summary&gt;
+</code></pre>
+<p><code>&lt;strong&gt;</code>{=html}7. What is the difference between SPA and
+CPA?<code>&lt;/strong&gt;</code>{=html}</p>
+<pre><code class="language-{=html}">&lt;/summary&gt;
+</code></pre>
+<p>SPA looks for recognizable patterns in a power trace. CPA uses
+statistical correlation between predicted power behavior and many
+measured traces.</p>
+<pre><code class="language-{=html}">&lt;/details&gt;
+</code></pre>
+<pre><code class="language-{=html}">&lt;details&gt;
+</code></pre>
+<pre><code class="language-{=html}">&lt;summary&gt;
+</code></pre>
+<p><code>&lt;strong&gt;</code>{=html}8. What does fault injection do?<code>&lt;/strong&gt;</code>{=html}</p>
+<pre><code class="language-{=html}">&lt;/summary&gt;
+</code></pre>
+<p>It deliberately disturbs hardware, potentially causing skipped
+instructions, incorrect calculations, or other faults.</p>
+<pre><code class="language-{=html}">&lt;/details&gt;
+</code></pre>
+<pre><code class="language-{=html}">&lt;details&gt;
+</code></pre>
+<pre><code class="language-{=html}">&lt;summary&gt;
+</code></pre>
+<p><code>&lt;strong&gt;</code>{=html}9. What is Rowhammer?<code>&lt;/strong&gt;</code>{=html}</p>
+<pre><code class="language-{=html}">&lt;/summary&gt;
+</code></pre>
+<p>Repeatedly accessing a DRAM row can disturb nearby rows and flip stored
+bits on susceptible memory systems.</p>
+<pre><code class="language-{=html}">&lt;/details&gt;
+</code></pre>
+<pre><code class="language-{=html}">&lt;details&gt;
+</code></pre>
+<pre><code class="language-{=html}">&lt;summary&gt;
+</code></pre>
+<p><code>&lt;strong&gt;</code>{=html}10. Why do security defenses have a
+&quot;price&quot;?<code>&lt;/strong&gt;</code>{=html}</p>
+<pre><code class="language-{=html}">&lt;/summary&gt;
+</code></pre>
+<p>They may reduce performance, increase hardware area or power, consume
+resources, or require more careful software implementation.</p>
+<pre><code class="language-{=html}">&lt;/details&gt;
+</code></pre>
+<h2>17. Connection to RISC-V and FPGA work</h2>
+<p>For RISC-V and FPGA validation, remember these distinctions:</p>
+<ul>
+<li>The <strong>RISC-V ISA</strong> defines instruction behavior; it does not promise
+that all instructions or data values take identical time or power.</li>
+<li>A <strong>RISC-V core's microarchitecture</strong> determines whether it has
+caches, branch prediction, speculative execution, SMT-related
+sharing, and other relevant structures.</li>
+<li>A small core without a cache avoids cache-specific attacks that
+depend on that cache, but it is not automatically immune to timing,
+power, EM, or fault attacks.</li>
+<li>On an FPGA, the implemented circuit, memory system, clock/power
+design, and physical access determine which side channels are
+relevant.</li>
+<li>Security validation should identify the threat model, the observable
+signal, the attacker's measurement capability, and the mitigation's
+cost.</li>
+</ul>
+<h3>Final takeaway</h3>
+<p><strong>A secure design protects both the answer and the way the answer is
+computed.</strong> Consider timing, power, cache state, speculation, shared
+resources, and fault behavior---not only the correctness of the
+algorithm.</p>
+<hr />
+<h3>Source and scope note</h3>
+<p>These notes are based on the 26-slide <strong>&quot;Side Channels &amp; Hardware
+Security&quot;</strong> presentation and the concepts we discussed together. The
+figures for cache timing and the 5--10× slowdown are presented as
+illustrative claims from the slides, not universal measurements. The
+diagrams in <code>images/</code> are original conceptual illustrations, not
+measured hardware data.</p>
+</article><footer><span>RISC-V Atlas · Study reference</span><span>Side channels &amp; hardware security</span></footer><div class="content micro-content imported-deck-content"><section class="study-section deck-intro" id="source-deck-side-channels-hardware-security"><div class="eyebrow">Integrated source deck · original topics retained</div><h2>Side Channels &amp; Hardware Security — expanded notes</h2><p>26-slide deck · timing, caches, speculation and physical channels. This material is added alongside the existing Atlas notes; it does not replace them.</p><div class="mini-flow"><span>Read the concept</span><span>Inspect diagrams</span><span>Use tables and examples</span><span>Revise</span></div></section><section class="study-section" id="deck-what-a-side-channel-is"><div class="pnum">01</div>
+<h2>What a side channel is</h2>
+<p>The algorithm can be perfect, and the secret can still walk out of the building.</p></section>
+<section class="study-section" id="deck-listening-to-the-lock"><div class="kicker">Part 1 · What a side channel is</div>
+<h2>Listening to the lock</h2>
+<div class="callout analogy"><span class="lbl">Analogy</span><p>A safe-cracker doesn't need the combination. They press an ear to the door and listen for the faint click as each wheel falls into place. The lock's design is sound; its <b>behaviour</b> gives it away.</p></div>
+<p>Software runs on physical hardware that takes time, draws current, gives off electromagnetic waves, and changes shared internal state. When any of these depends on a secret, an observer can learn the secret.</p>
+<p>A <dfn>side channel</dfn> is such an unintended signal — time, power, radiation, cache state — that leaks information the program never meant to reveal. The attacker doesn't defeat the cipher; they watch the machine running it.</p></section>
+<section class="study-section" id="deck-side-and-covert-channels"><div class="kicker">Part 1 · What a side channel is</div>
+<h2>Side channels and covert channels</h2>
+<table class="tbl">
+<tr><th></th><th>Side channel</th><th>Covert channel</th></tr>
+<tr><td><b>Intent</b></td><td>unintended — the victim leaks</td><td>deliberate — someone signals on purpose</td></tr>
+<tr><td><b>Parties</b></td><td>an unaware victim and an attacker</td><td>two colluding programs</td></tr>
+<tr><td><b>Goal</b></td><td>steal a secret</td><td>sneak data past an isolation rule</td></tr>
+</table>
+<p>A <dfn>covert channel</dfn> uses the same physical effects, on purpose. Many attacks build one internally to carry a stolen value out.</p>
+<div><span class="lbl">Two questions for every attack</span><p>What signal depends on the secret? And what must the attacker be able to measure — sharing the machine (cloud, browser, app) or holding the device (a smart card on a bench)?</p></div></section>
+<section class="study-section" id="deck-timing"><div class="pnum">02</div>
+<h2>Timing</h2>
+<p>The simplest channel of all: a stopwatch.</p></section>
+<section class="study-section" id="deck-an-early-exit-leaks"><div class="kicker">Part 2 · Timing</div>
+<h2>An early exit leaks</h2>
+<pre class="code">// LEAKY: returns as soon as one byte differs
+bool compare(const uint8_t *a, const uint8_t *b, size_t n) {
+    for (size_t i = 0; i &lt; n; i++)
+        if (a[i] != b[i]) return false;    // ← stops early
+    return true;
+}</pre>
+<ul>
+<li>A guess whose first byte is right takes slightly longer to be rejected than a guess with no right bytes.</li>
+<li>So an attacker tries all 256 values for byte 1, keeps the slowest, then moves to byte 2…</li>
+<li>For a 16-byte secret: about 16 × 256 = <b>4 096 tries</b> instead of 256¹⁶ — an impossible search becomes a quick one.</li>
+</ul></section>
+<section class="study-section" id="deck-constant-time-code"><div class="kicker">Part 2 · Timing</div>
+<h2>The fix: constant-time code</h2>
+<pre class="code">// CONSTANT TIME: always looks at every byte, never branches on secrets
+bool ct_equal(const uint8_t *a, const uint8_t *b, size_t n) {
+    uint8_t diff = 0;
+    for (size_t i = 0; i &lt; n; i++)
+        diff |= a[i] ^ b[i];      // collect differences, never stop early
+    return diff == 0;
+}</pre>
+<p><dfn>Constant-time code</dfn> takes the same time whatever the secret is. Its rules:</p>
+<ul class="tight">
+<li>no branches that depend on secret data;</li>
+<li>no memory addresses computed from secrets (no <code>table[secret]</code>);</li>
+<li>no instructions whose speed depends on their operands, used on secrets.</li>
+</ul>
+<p>"Fast on average" is not a security property. The variation is the leak.</p></section>
+<section class="study-section" id="deck-cache-timing-attacks"><div class="pnum">03</div>
+<h2>Cache-timing attacks</h2>
+<p>The shared cache is a stopwatch that remembers what the victim touched.</p></section>
+<section class="study-section" id="deck-the-cache-remembers"><div class="kicker">Part 3 · Cache-timing attacks</div>
+<h2>The cache remembers</h2>
+<div class="cols w32 mid">
+<div>
+<p>A cache hit takes a few cycles; a miss, hundreds. That difference is easy to measure.</p>
+<p>If the victim's memory accesses depend on a secret, the set of blocks it leaves in a <b>shared</b> cache encodes that secret.</p>
+<p>An attacker sharing the cache reads the pattern back by timing its own accesses. No bug in the victim is needed.</p>
+</div>
+<div>
+<svg height="230" viewbox="0 0 400 230" width="400">
+<rect class="box good" height="80" rx="10" width="140" x="30" y="60"></rect><text class="lbl sm b" text-anchor="middle" x="100" y="94">hit</text><text class="lbl xs mono" text-anchor="middle" x="100" y="118">~40 cycles</text>
+<rect class="box bad" height="160" rx="10" width="140" x="230" y="20"></rect><text class="lbl sm b" text-anchor="middle" x="300" y="94">miss</text><text class="lbl xs mono" text-anchor="middle" x="300" y="118">~300 cycles</text>
+<text class="lbl xs muted" text-anchor="middle" x="200" y="215">the gap is the signal</text>
+</svg>
+</div>
+</div>
+<div><span class="lbl">Why it is hard to kill</span><p>Caches are allowed to change speed, never results — and timing is exactly what the ISA leaves undefined. A shared cache is useful <i>because</i> it is shared; isolating it perfectly would erase its benefit.</p></div></section>
+<section class="study-section" id="deck-three-techniques"><div class="kicker">Part 3 · Cache-timing attacks</div>
+<h2>Three classic techniques</h2>
+<div class="cols c3">
+<div><h3><dfn>Flush+Reload</dfn></h3><p class="small">Needs memory shared with the victim. Flush a line; let the victim run; reload and time it. Fast = the victim touched it. Precise, low noise.</p></div>
+<div><h3>Prime+Probe</h3><p class="small">No sharing needed. Fill a cache set with your own lines; let the victim run; re-time your lines. Slow ones were evicted — the victim used that set. Works across virtual machines.</p></div>
+<div><h3>Evict+Time</h3><p class="small">Time the whole victim; evict a chosen set; time it again. Slower the second time = the victim depends on that set. Coarse but simple.</p></div>
+</div></section>
+<section class="study-section" id="deck-try-flush-reload"><div class="kicker">Part 3 · Cache-timing attacks</div>
+<h2>Try it: Flush+Reload, conceptually</h2>
+<p class="small">A safe, simulated model — no real measurement happens. Run the three steps in order.</p>
+<div class="callout tip"><b>Concept visual</b><p>This deck contains an interactive slide visual. The surrounding notes explain the principle; this static study page preserves the concept without requiring the original slide runtime.</p></div></section>
+<section class="study-section" id="deck-spectre-and-meltdown"><div class="pnum">04</div>
+<h2>Spectre and Meltdown</h2>
+<p>In 2018, speculation itself turned out to be a side-channel engine.</p></section>
+<section class="study-section" id="deck-the-gap-that-leaks"><div class="kicker">Part 4 · Spectre and Meltdown</div>
+<h2>The gap that leaks</h2>
+<ul>
+<li>An out-of-order core runs ahead on guesses. Wrong-path instructions are thrown away: no register or memory change survives.</li>
+<li>But the <b>cache blocks they loaded stay in the cache</b>.</li>
+<li>Work done in that brief window before the squash is called <dfn>transient execution</dfn>. Within it, an attacker can (1) read a secret and (2) touch a cache block whose address depends on it.</li>
+<li>Then Flush+Reload reads the secret back out of the cache.</li>
+</ul>
+<div><span class="lbl">In one sentence</span><p>Speculation deletes the result, but not the footprint.</p></div></section>
+<section class="study-section" id="deck-spectre-step-by-step"><div class="kicker">Part 4 · Spectre and Meltdown</div>
+<h2>Spectre, conceptually</h2>
+<div class="fig">
+<svg height="230" viewbox="0 0 1140 230" width="1140">
+<g><rect class="box brand" height="120" rx="12" width="200" x="10" y="30"></rect><text class="lbl sm b" text-anchor="middle" x="110" y="62">1. train</text><text class="lbl xs" text-anchor="middle" x="110" y="90">run the bounds check</text><text class="lbl xs" text-anchor="middle" x="110" y="112">many times with valid</text><text class="lbl xs" text-anchor="middle" x="110" y="134">input → "in bounds"</text></g>
+<g><rect class="box warn" height="120" rx="12" width="200" x="240" y="30"></rect><text class="lbl sm b" text-anchor="middle" x="340" y="62">2. mislead</text><text class="lbl xs" text-anchor="middle" x="340" y="90">pass an out-of-bounds</text><text class="lbl xs" text-anchor="middle" x="340" y="112">index; the predictor</text><text class="lbl xs" text-anchor="middle" x="340" y="134">guesses "in bounds"</text></g>
+<g><rect class="box bad" height="120" rx="12" width="200" x="470" y="30"></rect><text class="lbl sm b" text-anchor="middle" x="570" y="62">3. transient read</text><text class="lbl xs" text-anchor="middle" x="570" y="90">the core reads the</text><text class="lbl xs" text-anchor="middle" x="570" y="112">secret and touches</text><text class="lbl xs" text-anchor="middle" x="570" y="134">probe[secret]</text></g>
+<g><rect class="box soft" height="120" rx="12" width="200" x="700" y="30"></rect><text class="lbl sm b" text-anchor="middle" x="800" y="62">4. squash</text><text class="lbl xs" text-anchor="middle" x="800" y="90">check resolves; all</text><text class="lbl xs" text-anchor="middle" x="800" y="112">results discarded…</text><text class="lbl xs" text-anchor="middle" x="800" y="134">…except the cache</text></g>
+<g><rect class="box good" height="120" rx="12" width="200" x="930" y="30"></rect><text class="lbl sm b" text-anchor="middle" x="1030" y="62">5. time it</text><text class="lbl xs" text-anchor="middle" x="1030" y="90">Flush+Reload finds</text><text class="lbl xs" text-anchor="middle" x="1030" y="112">which probe line is</text><text class="lbl xs" text-anchor="middle" x="1030" y="134">fast → the secret</text></g>
+<text class="lbl sm muted" text-anchor="middle" x="570" y="200">the program's own trusted code is tricked into leaking — conceptual only, no exploit here</text>
+</svg>
+</div></section>
+<section class="study-section" id="deck-spectre-and-meltdown-compared"><div class="kicker">Part 4 · Spectre and Meltdown</div>
+<h2>Spectre and Meltdown compared</h2>
+<table class="tbl compact">
+<tr><th></th><th>Spectre</th><th>Meltdown</th></tr>
+<tr><td><b>Root cause</b></td><td>speculating past a mistrained branch</td><td>using a load's value before its permission fault takes effect</td></tr>
+<tr><td><b>Barrier bypassed</b></td><td>a software bounds or type check</td><td>the user/kernel privilege boundary</td></tr>
+<tr><td><b>Reads</b></td><td>the victim's own memory</td><td>kernel memory, from a user program</td></tr>
+<tr><td><b>Carried out by</b></td><td>the cache (Flush+Reload, Prime+Probe)</td><td>the cache (Flush+Reload)</td></tr>
+<tr><td><b>Main fix</b></td><td>speculation fences, retpolines, masked indices</td><td>unmapping the kernel (KPTI); fixed chips</td></tr>
+</table>
+<p>A whole family followed the same recipe — find a transient window, make a secret-dependent access, carry it out through a microarchitectural channel: Foreshadow, RIDL, ZombieLoad, Retbleed and more.</p></section>
+<section class="study-section" id="deck-physical-channels"><div class="pnum">05</div>
+<h2>Physical channels</h2>
+<p>Hold the device, and power, radiation and deliberate glitches join the list.</p></section>
+<section class="study-section" id="deck-power-analysis"><div class="kicker">Part 5 · Physical channels</div>
+<h2>Power analysis</h2>
+<div class="cols w32 mid">
+<div>
+<p>A chip's power draw depends on how many bits switch each cycle — which depends on the data. Measure the current, or the radio waves it gives off, and you see the computation's outline.</p>
+<p><b>Simple power analysis (SPA)</b> reads the secret straight off one trace. In naive RSA, a 1 bit in the key causes an extra multiply — an extra bump.</p>
+<p><b>Differential / correlation power analysis (DPA / CPA)</b> uses statistics over thousands of traces to pull a tiny leak out of the noise.</p>
+</div>
+<div>
+<svg height="230" viewbox="0 0 420 230" width="420">
+<text class="lbl xs b" text-anchor="middle" x="210" y="20">power trace (SPA)</text>
+<path class="wire brand" d="M10,150 L40,150 L45,90 L60,90 L65,150 L95,150 L100,90 L115,90 L120,150 L125,110 L140,110 L145,150 L175,150 L180,90 L195,90 L200,150 L205,110 L220,110 L225,150 L255,150 L260,90 L275,90 L280,150 L310,150 L315,90 L330,90 L335,150 L340,110 L355,110 L360,150 L410,150" style="stroke-width:3"></path>
+<text class="lbl xs mono" text-anchor="middle" x="52" y="180">0</text>
+<text class="lbl xs mono b bad" text-anchor="middle" x="120" y="180">1</text>
+<text class="lbl xs mono b bad" text-anchor="middle" x="200" y="180">1</text>
+<text class="lbl xs mono" text-anchor="middle" x="268" y="180">0</text>
+<text class="lbl xs mono b bad" text-anchor="middle" x="335" y="180">1</text>
+<text class="lbl xs muted" text-anchor="middle" x="210" y="214">extra small bump = extra multiply = key bit 1</text>
+</svg>
+</div>
+</div>
+<p>Fix: make the sequence of operations independent of the key (always multiply, then keep or discard the result).</p></section>
+<section class="study-section" id="deck-fault-injection"><div class="kicker">Part 5 · Physical channels</div>
+<h2>Fault injection: make the chip err</h2>
+<ul>
+<li><dfn>Fault injection</dfn> (glitching) disturbs the hardware on purpose: a brief dip in supply voltage, a too-short clock pulse, an electromagnetic pulse, a laser on the bare die.</li>
+<li>One well-timed glitch can skip a single instruction — such as the branch that checks a signature at boot.</li>
+<li>Or it corrupts one step of a cipher; comparing right and wrong outputs can reveal the key.</li>
+</ul>
+<p>Defences: checks done twice, sensors that detect glitches, randomised timing, error-detecting arithmetic. These attacks need the device in hand — exactly what an attacker has with a card or an IoT gadget.</p></section>
+<section class="study-section" id="deck-more-shared-state"><div class="kicker">Part 5 · Physical channels</div>
+<h2>Almost any shared state can leak</h2>
+<table class="tbl compact">
+<tr><th>Channel</th><th>Shared thing</th><th>What leaks</th></tr>
+<tr><td><b>Branch predictor</b></td><td>prediction tables</td><td>the victim's branch directions; also how Spectre misleads</td></tr>
+<tr><td><b>TLB</b></td><td>translation cache</td><td>which pages the victim uses</td></tr>
+<tr><td><b>Execution ports</b></td><td>units shared by SMT threads</td><td>which kinds of instruction the sibling thread runs</td></tr>
+<tr><td><b>DRAM rows</b></td><td>physical memory cells</td><td>not a leak but a fault: <dfn>Rowhammer</dfn></td></tr>
+</table>
+<p>Rowhammer: reading one DRAM row very rapidly disturbs its neighbours and flips their bits — with nothing but legal reads. It has been used to corrupt page tables. Defences: targeted refresh, error-correcting memory, guard rows.</p></section>
+<section class="study-section" id="deck-defences-and-their-price"><div class="pnum">06</div>
+<h2>Defences, and their price</h2>
+<p>No single fix — layers, each paid for in performance.</p></section>
+<section class="study-section" id="deck-defences"><div class="kicker">Part 6 · Defences, and their price</div>
+<h2>The defensive toolbox</h2>
+<table class="tbl compact">
+<tr><th>Defence</th><th>Who</th><th>Against</th><th>Price</th></tr>
+<tr><td>constant-time code</td><td>programmers</td><td>timing, cache timing</td><td>careful coding</td></tr>
+<tr><td>cache partitioning</td><td>hardware, OS</td><td>Prime+Probe, Flush+Reload</td><td>less cache per program</td></tr>
+<tr><td>flushing at switches</td><td>OS, hardware</td><td>leftover state</td><td>cold caches after every switch</td></tr>
+<tr><td>speculation fences</td><td>compiler, programmer</td><td>Spectre (bounds check)</td><td>stalls the pipeline</td></tr>
+<tr><td>retpolines, index masking</td><td>compiler</td><td>Spectre variants</td><td>slower indirect jumps</td></tr>
+<tr><td>kernel page-table isolation</td><td>OS</td><td>Meltdown</td><td>slower system calls</td></tr>
+<tr><td>masking and hiding</td><td>hardware, crypto</td><td>power and radiation analysis</td><td>area and power</td></tr>
+<tr><td>SMT off for strangers</td><td>OS</td><td>port contention</td><td>half the threads</td></tr>
+</table></section>
+<section class="study-section" id="deck-the-big-lesson"><div class="kicker">Part 6 · Defences, and their price</div>
+<h2>The big lesson</h2>
+<div class="callout key"><span class="lbl">The feature is the leak</span><p>Caches leak because they are shared and fast on reuse. Speculation leaks because it runs ahead of correctness. SMT leaks because threads share units. Every microarchitectural side channel traces back to a performance optimisation.</p></div>
+<ul class="mt">
+<li>Security cannot be bolted on afterwards: isolation, constant-time behaviour and the option to turn sharing off must be designed in.</li>
+<li>A chip that never speculated and shared nothing would be free of these channels — and perhaps 5–10× slower. The engineering art is giving up the <b>least</b> speed needed to close a given channel.</li>
+</ul>
+<div><span class="lbl">Misconception</span><p>"If the maths is secure, the chip is secure." Security proofs assume a machine that reveals only inputs and outputs. Real silicon also reveals time, power and shared state. AES-256 is unbroken — yet table-based AES has leaked keys through the cache.</p></div></section>
+<section class="study-section" id="deck-check-yourself"><div class="kicker">Part 6 · Defences, and their price</div>
+<h2>Check yourself</h2>
+<p class="q">1. Why does <span class="mono">if (secret_bit) x = slow(); else x = fast();</span> leak, even though x is never printed?<br/>2. After a wrong guess is squashed, what survives that Spectre relies on?</p>
+<div><span class="lbl">Answer</span>
+<p>1. The running time depends on the secret bit; anyone who can time the code learns it.</p>
+<p>2. The cache state — blocks loaded by the transient instructions stay cached, and their timing can be measured.</p>
+</div></section>
+<section class="study-section" id="deck-recap"><div class="kicker">Part 6 · Defences, and their price</div>
+<h2>Recap</h2>
+<ul>
+<li>A side channel leaks secrets through unintended signals — time, power, radiation, cache state — not through the algorithm.</li>
+<li>Constant-time code: no secret-dependent branches, addresses or variable-speed instructions.</li>
+<li>Flush+Reload, Prime+Probe and Evict+Time read a victim's access pattern from a shared cache.</li>
+<li>Spectre and Meltdown use transient execution: squashed work leaves a cache footprint.</li>
+<li>Power analysis, fault injection, predictors, TLBs and Rowhammer widen the field. Every defence costs some speed — the feature is the leak.</li>
+</ul></section></div></main></div><script src="../assets/app.js"></script></body></html>

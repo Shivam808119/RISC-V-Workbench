@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f6f8fc"><title>Out-of-Order &amp; Superscalar — RISC-V Atlas</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><header class="top"><button class="btn mobile" data-menu aria-label="Open navigation">☰</button><a class="brand" href="../index.html"><span class="mark">RV</span><span>RISC-V Atlas<small>Personal study workspace</small></span></a><div class="toplinks"><a href="../index.html">Overview</a><a href="../cores/index.html">Core directory</a><button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch color theme"><span class="theme-icon" data-theme-icon>☾</span><span class="theme-label" data-theme-label>Dark mode</span></button></div></header>
+<div class="layout"><aside class="sidebar"><div class="side-label">Study workspace</div><a class="navitem" href="../index.html"><span class="sym">⌂</span>Overview</a><div class="side-label">Microarchitecture</div><a class="navitem" href="pipelining.html"><span class="sym">⇢</span>Pipelining & hazards</a><a class="navitem" href="out-of-order.html"><span class="sym">↗</span>Out-of-order & superscalar</a><div class="side-label">Study topics</div><a class="navitem" href="memory.html"><span class="sym">▤</span>Memory systems</a><a class="navitem" href="interconnect.html"><span class="sym">⌘</span>On-chip interconnect</a><a class="navitem" href="interfaces.html"><span class="sym">⇄</span>Peripheral interfaces</a><a class="navitem" href="cores.html"><span class="sym">▣</span>RISC-V cores</a><a class="navitem" href="benchmarks.html"><span class="sym">▥</span>Benchmarks & metrics</a><a class="navitem" href="security.html"><span class="sym">◇</span>Memory & security</a><a class="navitem" href="side-channels.html"><span class="sym">◉</span>Side channels & hardware security</a><a class="navitem" href="libero.html"><span class="sym">⌁</span>Libero SoC flow</a><div class="side-label">Core directory</div><a class="navitem" href="../cores/index.html"><span class="sym">▦</span>10 core profiles</a></aside>
+<main class="main"><div class="articlehead"><div class="crumb"><a href="../index.html">Overview</a> / Microarchitecture</div><div class="eyebrow">Microarchitecture · Study reference · Deck 03 of 11</div><h1>Out-of-Order &amp; Superscalar</h1><p class="lead">A structured study guide adapted from your 32-slide deck: instruction scheduling, renaming, Tomasulo, reorder buffers, speculation and wide issue.</p><div class="tags"><span class="tag study">Adapted from your uploaded slide deck</span><span class="tag">32-slide source</span><span class="tag">Study notes + diagrams</span></div></div>
+<div class="content micro-content"><div class="callout idea"><b>Suggested study path</b><p>Read the concepts in order, inspect each diagram, and work through the self-check section near the end. The interactive slide widgets have been converted to static explanations so the page works locally and on GitHub Pages without the original deck runtime.</p><div class="mini-flow"><span>Understand the idea</span><span>Study the diagram/table</span><span>Try the questions</span><span>Review the recap</span></div></div>
+<section class="study-section" id="the-road-through-this-deck"><div class="kicker">Before we start</div><h2>The road through this deck</h2><p class="small muted">You should already know: the Pipelining deck (hazards, RAW/WAR/WAW, forwarding, branch prediction).</p><div class="road"><ol class="tight"><li><b>The cost of a single stall</b></li><li><b>Which reorderings are legal?</b></li><li><b>Register renaming</b></li><li><b>Dynamic scheduling</b></li><li><b>Putting results back in order</b></li><li><b>Wider: several per cycle</b></li></ol><div class="callout idea"><span class="lbl">By the end you will be able to</span><ul class="tight"><li>explain why one slow instruction freezes an in-order pipeline, and how out-of-order execution hides it</li><li>tell true dependences from false ones, and remove the false ones with register renaming</li><li>follow Tomasulo's algorithm and the reorder buffer that keeps results in program order</li><li>compare in-order and out-of-order superscalar cores, VLIW and simultaneous multithreading</li></ul></div></div></section>
+<section class="study-section chapter-divider" id="the-cost-of-a-single-stall"><div class="pnum">01</div>
+<h2>The cost of a single stall</h2>
+<p>In order means one slow instruction holds up everyone behind it.</p></section>
+<section class="study-section" id="stuck-behind-a-miss"><div class="kicker">Part 1 · The cost of a single stall</div>
+<h2>Stuck behind a slow load</h2>
+<pre class="code lg" data-lang="asm">lw   x1, 0(x2)      # memory is slow: 12 cycles, or even 200
+add  x3, x1, x4     # needs x1 — truly has to wait
+sub  x6, x7, x8     # independent! could run now
+or   x9, x10, x11   # independent! also stuck
+mul  x12, x13, x14  # independent! also stuck</pre>
+<ul>
+<li>An in-order pipeline has one iron rule: instruction <i>i + 1</i> may not overtake instruction <i>i</i>.</li>
+<li>So <code>sub</code>, <code>or</code> and <code>mul</code> sit idle behind <code>add</code>, although their inputs are ready and their hardware is free.</li>
+</ul>
+<div><span class="lbl">Analogy</span><p>A supermarket queue where the first customer's card is declined. Everyone behind waits — even the person holding only a bottle of water and exact change.</p></div></section>
+<section class="study-section" id="out-of-order-execution"><div class="kicker">Part 1 · The cost of a single stall</div>
+<h2>The fix: let ready work go first</h2>
+<p><dfn data-also="OoO">Out-of-order execution</dfn> keeps a pool of decoded instructions and, each cycle, starts any whose inputs are ready and whose hardware is free — whatever their order in the program.</p>
+<div class="mini-flow"><span>Slow load waits</span><span>Independent SUB runs</span><span>Independent OR runs</span><span>Results retire in order</span></div></section>
+<section class="study-section" id="the-window"><div class="kicker">Part 1 · The cost of a single stall</div>
+<h2>The instruction window</h2>
+<ul>
+<li>The pool of decoded instructions the core can choose from is the <dfn>instruction window</dfn> — tens to hundreds of instructions in modern cores.</li>
+<li>The bigger the window, the more independent work the core can find while something slow is pending. That ability to keep busy during a long wait is called <b>latency tolerance</b>.</li>
+<li>But a bigger window costs chip area and power. Every entry must be watched every cycle.</li>
+</ul>
+<div><span class="lbl">The goal</span><p>Find independent work, and overlap slow operations with useful computation instead of stalling.</p></div></section>
+<section class="study-section chapter-divider" id="which-reorderings-are-legal"><div class="pnum">02</div>
+<h2>Which reorderings are legal?</h2>
+<p>Before running anything early, the core must know what it may not reorder.</p></section>
+<section class="study-section" id="true-and-false-dependences"><div class="kicker">Part 2 · Which reorderings are legal?</div>
+<h2>True and false dependences</h2>
+<table class="tbl">
+<tr><th>Type</th><th>Pattern</th><th>Kind</th></tr>
+<tr><td><b>RAW</b></td><td>write x1 … read x1</td><td>a true dependence: data really flows from one instruction to the next. Nothing can remove it.</td></tr>
+<tr><td><b>WAR</b></td><td>read x1 … write x1</td><td rowspan="2">a <dfn>false dependence</dfn>: no data flows. The two instructions merely reuse the same register <i>name</i>.</td></tr>
+<tr><td><b>WAW</b></td><td>write x1 … write x1</td></tr>
+</table>
+<p>False dependences exist only because the ISA has a small number of register names — 32 in RISC-V — and compilers reuse them.</p></section>
+<section class="study-section" id="an-example"><div class="kicker">Part 2 · Which reorderings are legal?</div>
+<h2>An example: x1 reused as scratch</h2>
+<pre class="code lg" data-lang="asm">(i1) ADD  x1, x2, x3     # writes x1
+(i2) SUB  x4, x1, x5     # reads x1         → RAW with i1 (true)
+(i3) MUL  x1, x6, x7     # writes x1 again  → WAW with i1, WAR with i2 (false!)
+(i4) DIV  x8, x1, x9     # reads the new x1 → RAW with i3 (true)</pre>
+<ul>
+<li>i3's result has nothing to do with i1's. Only the shared name "x1" stops i3 from running early.</li>
+<li>If i3 ran first, it would overwrite the x1 that i2 still needs (WAR) and could be overwritten by i1 later (WAW).</li>
+<li>Give i3's result a <b>different home</b>, and both problems disappear.</li>
+</ul></section>
+<section class="study-section chapter-divider" id="register-renaming"><div class="pnum">03</div>
+<h2>Register renaming</h2>
+<p>More hidden registers than the program can name — and a table that keeps track.</p></section>
+<section class="study-section" id="renaming"><div class="kicker">Part 3 · Register renaming</div>
+<h2>Many more homes than names</h2>
+<ul>
+<li>The ISA offers 32 <b>architectural</b> register names. Inside, the core has a much larger <dfn>physical register file</dfn> — often 128 to 300 entries.</li>
+<li>A <dfn>rename table</dfn> (RAT) records which physical register currently holds each architectural one.</li>
+<li>Every instruction that writes a register is handed a fresh physical register from a <dfn>free list</dfn>. Readers look up the table to find where their input lives.</li>
+</ul>
+<p>This is <dfn>register renaming</dfn>. Since every write lands in a brand-new register, two writes never collide: WAR and WAW vanish. Only RAW — real data flow — remains.</p>
+<div><span class="lbl">Analogy</span><p>A cloakroom. Your coat isn't stored "on hook 3 because you're guest 3": you get a fresh ticket number each time. Two guests called Sam never mix up their coats.</p></div></section>
+<section class="study-section" id="try-renaming"><div class="kicker">Part 3 · Register renaming</div>
+<h2>Try it: rename the four instructions</h2>
+<div class="callout"><b>Register-renaming exercise</b><p>Give each destination a fresh physical register. Consumers track the physical version they need; this removes WAR and WAW name conflicts while preserving true RAW dataflow.</p></div></section>
+<section class="study-section" id="getting-registers-back"><div class="kicker">Part 3 · Register renaming</div>
+<h2>When does a physical register come back?</h2>
+<ul>
+<li>When an instruction that wrote x1 is finally confirmed, the <b>previous</b> home of x1 can no longer be needed by anyone.</li>
+<li>That old physical register goes back on the free list.</li>
+<li>As long as instructions are confirmed in order, the core never runs out of homes for long. (How "confirmed in order" works comes shortly: <span class="fwd">the reorder buffer</span>.)</li>
+</ul></section>
+<section class="study-section chapter-divider" id="dynamic-scheduling"><div class="pnum">04</div>
+<h2>Dynamic scheduling</h2>
+<p>The hardware that watches which instructions are ready and sends them off.</p></section>
+<section class="study-section" id="scoreboarding"><div class="kicker">Part 4 · Dynamic scheduling</div>
+<h2>1964: the scoreboard</h2>
+<div class="cols w32 mid">
+<div>
+<p>The CDC 6600 had a central bookkeeper, the <dfn>scoreboard</dfn>, tracking every functional unit and register.</p>
+<p>Instructions could execute out of order — a first in history.</p>
+<p>But it did no renaming: on a WAR or WAW it simply <b>stalled</b>, and results were not forwarded between instructions.</p>
+</div>
+<div><h3>Its four steps</h3><ol class="tight small"><li>Issue</li><li>Read operands</li><li>Execute</li><li>Write result</li></ol></div>
+</div></section>
+<section class="study-section" id="tomasulo-s-algorithm"><div class="kicker">Part 4 · Dynamic scheduling</div>
+<h2>1967: Tomasulo's algorithm</h2>
+<p>Robert Tomasulo's design for the IBM 360/91 is the ancestor of nearly every out-of-order core today. Three ideas:</p>
+<div class="cols c3">
+<div><h3><dfn data-also="RS">Reservation stations</dfn></h3><p class="small">Waiting areas in front of each functional unit. An instruction waits there, holding the operands it already has.</p></div>
+<div><h3>Tags, not names</h3><p class="small">A missing operand is labelled with the <b>tag</b> of the station that will produce it — which renames registers automatically.</p></div>
+<div><h3><dfn data-also="CDB">Common data bus</dfn></h3><p class="small">A finished unit broadcasts <b>(tag, value)</b>. Everyone waiting on that tag grabs the value at once.</p></div>
+</div>
+<div><span class="lbl">Analogy</span><p>A deli counter. You don't wait for "the person before you" — you wait for <b>your ticket number</b> to be called. When it is, anyone holding that number steps up.</p></div></section>
+<section class="study-section" id="a-tomasulo-timeline"><div class="kicker">Part 4 · Dynamic scheduling</div>
+<h2>Worked example: a Tomasulo timeline</h2>
+<div class="cols w23">
+<pre class="code sm" data-lang="asm">i1: MUL x1, x2, x3
+i2: ADD x4, x1, x5   # needs i1
+i3: SUB x6, x7, x8   # independent
+i4: DIV x9, x4, x6   # needs i2 and i3</pre>
+<p class="small">MUL takes 4 cycles, ADD and SUB 2, DIV 8. One instruction issues per cycle; one result per cycle on the bus.</p>
+</div>
+<table class="tbl compact center">
+<tr><th>instr</th><th>issue</th><th>execute</th><th>broadcast</th><th style="text-align:left">why</th></tr>
+<tr><td class="mono">i1 MUL</td><td>1</td><td>2 – 5</td><td>6</td><td style="text-align:left">operands ready at once</td></tr>
+<tr><td class="mono">i3 SUB</td><td>3</td><td>4 – 5</td><td>7</td><td style="text-align:left"><b>runs before i2</b>; bus busy in cycle 6, so it broadcasts in 7</td></tr>
+<tr><td class="mono">i2 ADD</td><td>2</td><td>7 – 8</td><td>9</td><td style="text-align:left">woken by i1's broadcast in cycle 6</td></tr>
+<tr><td class="mono">i4 DIV</td><td>4</td><td>10 – 17</td><td>18</td><td style="text-align:left">needs i2 (cycle 9) and i3 (cycle 7)</td></tr>
+</table>
+<p>The table is sorted by when each instruction <b>executes</b>: i3 overtakes i2. One shared bus is a real limit — it delays i3 by a cycle.</p></section>
+<section class="study-section" id="scoreboard-and-tomasulo-compared"><div class="kicker">Part 4 · Dynamic scheduling</div>
+<h2>Side by side</h2>
+<table class="tbl">
+<tr><th></th><th>Scoreboard (CDC 6600)</th><th>Tomasulo (IBM 360/91)</th></tr>
+<tr><td><b>Structure</b></td><td>one central table</td><td>stations spread across the units</td></tr>
+<tr><td><b>Renaming</b></td><td>no — stalls on WAR and WAW</td><td>yes — tags remove them</td></tr>
+<tr><td><b>Passing results</b></td><td>through the register file</td><td>broadcast on the common data bus</td></tr>
+<tr><td><b>Legacy</b></td><td>historical</td><td>the basis of modern out-of-order cores</td></tr>
+</table>
+<p>Neither, though, could stop cleanly at an error: results were written the moment they were ready, in any order. That is the missing piece.</p></section>
+<section class="study-section chapter-divider" id="putting-results-back-in-order"><div class="pnum">05</div>
+<h2>Putting results back in order</h2>
+<p>Execute in any order — but make the results official in program order.</p></section>
+<section class="study-section" id="precise-exceptions"><div class="kicker">Part 5 · Putting results back in order</div>
+<h2>The problem: errors in a scrambled world</h2>
+<ul>
+<li>Suppose an old instruction divides by zero — but a younger one has already overwritten a register. The program's state is now a mixture of "before" and "after".</li>
+<li>An operating system or debugger needs a <dfn>precise exception</dfn>: every instruction before the faulting one has finished, none after it has changed anything, and the PC points exactly at the culprit.</li>
+</ul>
+<div><span class="lbl">Analogy</span><p>A kitchen cooks dishes in whatever order is quickest, but the waiter serves each table's courses strictly in order. If the soup is spoiled, nothing after it has reached the table yet.</p></div></section>
+<section class="study-section" id="the-reorder-buffer"><div class="kicker">Part 5 · Putting results back in order</div>
+<h2>The reorder buffer</h2>
+<div class="cols w32 mid">
+<div>
+<p>The <dfn data-also="ROB">reorder buffer</dfn> (ROB) is a queue holding every in-flight instruction <b>in program order</b>.</p>
+<p>Instructions execute out of order and park their results in the ROB.</p>
+<p>Only the instruction at the <b>head</b> may <dfn data-also="retire">commit</dfn>: make its result official and leave. Commit is strictly in order.</p>
+<p>If the head faulted — or was a wrongly guessed branch — everything younger is thrown away. Clean, every time.</p>
+</div>
+<div>
+<svg height="330" viewbox="0 0 420 330" width="420">
+<text class="lbl xs b muted" text-anchor="middle" x="200" y="20">oldest at the head</text>
+<rect class="box good" height="44" width="200" x="100" y="34"></rect><text class="lbl sm mono" text-anchor="middle" x="200" y="56">i1 done ✓</text>
+<rect class="box" height="44" width="200" x="100" y="78"></rect><text class="lbl sm mono" text-anchor="middle" x="200" y="100">i2 waiting</text>
+<rect class="box good" height="44" width="200" x="100" y="122"></rect><text class="lbl sm mono" text-anchor="middle" x="200" y="144">i3 done ✓</text>
+<rect class="box" height="44" width="200" x="100" y="166"></rect><text class="lbl sm mono" text-anchor="middle" x="200" y="188">i4 waiting</text>
+<path class="wire good" d="M300,56 L380,56"></path><path class="arrowhead" d="M366,49 L380,56 L366,63 Z"></path>
+<text class="lbl xs b good" text-anchor="middle" x="350" y="40">commit</text>
+<text class="lbl xs" text-anchor="middle" x="200" y="240">i3 finished early, but must wait</text>
+<text class="lbl xs" text-anchor="middle" x="200" y="262">until i2 commits before it</text>
+</svg>
+</div>
+</div></section>
+<section class="study-section" id="the-modern-pipeline"><div class="kicker">Part 5 · Putting results back in order</div>
+<h2>The modern out-of-order pipeline</h2>
+<div class="fig">
+<svg height="250" viewbox="0 0 1160 250" width="1160">
+<rect class="box soft" height="140" rx="14" width="440" x="10" y="20"></rect>
+<text class="lbl sm b" text-anchor="middle" x="230" y="44">in order</text>
+<rect class="box hi" height="140" rx="14" width="420" x="470" y="20"></rect>
+<text class="lbl sm b" text-anchor="middle" x="680" y="44">out of order</text>
+<rect class="box soft" height="140" rx="14" width="240" x="910" y="20"></rect>
+<text class="lbl sm b" text-anchor="middle" x="1030" y="44">in order</text>
+<g>
+<rect class="box brand" height="56" rx="8" width="95" x="25" y="80"></rect><text class="lbl xs b" text-anchor="middle" x="72" y="108">fetch</text>
+<rect class="box brand" height="56" rx="8" width="95" x="132" y="80"></rect><text class="lbl xs b" text-anchor="middle" x="179" y="108">decode</text>
+<rect class="box brand" height="56" rx="8" width="95" x="239" y="80"></rect><text class="lbl xs b" text-anchor="middle" x="286" y="108">rename</text>
+<rect class="box brand" height="56" rx="8" width="95" x="346" y="80"></rect><text class="lbl xs b" text-anchor="middle" x="393" y="108">dispatch</text>
+<rect class="box accent" height="56" rx="8" width="125" x="482" y="80"></rect><text class="lbl xs b" text-anchor="middle" x="544" y="108">issue</text>
+<rect class="box accent" height="56" rx="8" width="125" x="617" y="80"></rect><text class="lbl xs b" text-anchor="middle" x="679" y="108">execute</text>
+<rect class="box accent" height="56" rx="8" width="125" x="752" y="80"></rect><text class="lbl xs b" text-anchor="middle" x="814" y="108">write back</text>
+<rect class="box good" height="56" rx="8" width="210" x="925" y="80"></rect><text class="lbl xs b" text-anchor="middle" x="1030" y="108">commit (ROB head)</text>
+</g>
+<text class="lbl xs" text-anchor="middle" x="286" y="190">renaming kills WAR and WAW</text>
+<text class="lbl xs" text-anchor="middle" x="680" y="190">ready instructions go, any order</text>
+<text class="lbl xs" text-anchor="middle" x="1030" y="190">results made official in order</text>
+<text class="lbl sm b" text-anchor="middle" x="580" y="232">order is kept where it matters, and relaxed where it pays</text>
+</svg>
+</div></section>
+<section class="study-section" id="speculation"><div class="kicker">Part 5 · Putting results back in order</div>
+<h2>Speculation: running ahead of branches</h2>
+<ul>
+<li>A branch comes every ~5 instructions. A big window would be useless if it stopped filling at each one.</li>
+<li>So the core uses the branch predictor and keeps fetching, renaming and executing down the guessed path. This is <dfn>speculation</dfn>; such instructions may execute but cannot commit until the branch is confirmed.</li>
+<li><b>Right guess</b>: the work is already done — no penalty.</li>
+<li><b>Wrong guess</b>: every ROB entry younger than the branch is thrown away, the rename table is restored from a saved copy, and fetch restarts on the correct path. Only a few cycles lost.</li>
+</ul>
+<div><span class="lbl">Keep in mind</span><p>Wrong-path work leaves no trace in registers or memory. But it can leave traces elsewhere — the basis of the Spectre attacks in the security deck.</p></div></section>
+<section class="study-section" id="loads-and-stores"><div class="kicker">Part 5 · Putting results back in order</div>
+<h2>The hard case: loads and stores</h2>
+<ul>
+<li>A load may be ready while an older store's address is still unknown. Do they touch the same memory? Nobody knows yet.</li>
+<li>The <dfn data-also="LSQ">load/store queue</dfn> (LSQ) keeps memory operations in program order.</li>
+<li>If a load reads an address an older store is about to write, the queue hands over the store's data directly: <b>store-to-load forwarding</b>.</li>
+<li>Aggressive cores let loads go early on a guess; if a store later turns out to overlap, the load and everything after it are redone.</li>
+</ul></section>
+<section class="study-section chapter-divider" id="wider-several-per-cycle"><div class="pnum">06</div>
+<h2>Wider: several per cycle</h2>
+<p>Superscalar, VLIW and multithreading — three ways to fill a wide machine.</p></section>
+<section class="study-section" id="superscalar"><div class="kicker">Part 6 · Wider: several per cycle</div>
+<h2>Superscalar: more than one per cycle</h2>
+<p>Everything so far starts at most one instruction per cycle: IPC ≤ 1. A <dfn>superscalar</dfn> core fetches, decodes, issues and commits several per cycle — 2, 4, 6 or more wide.</p>
+<div class="cols">
+<div><h3>In-order superscalar</h3><p class="small">Fetches N per cycle but issues them in order; if one stalls, those behind it stall. Cheap and frugal. <b>Arm Cortex-A53</b>: two per cycle.</p></div>
+<div><h3>Out-of-order superscalar</h3><p class="small">Issues any ready instructions from a large window. Far higher IPC on real code, at a large area and power cost. <b>Arm Cortex-A76</b>: four per cycle.</p></div>
+</div>
+<div><span class="lbl">Why not 16-wide?</span><p>To issue N instructions together, every pair must be checked against each other: about <b>N²</b> comparisons. Register-file ports and forwarding wires grow just as fast. Past 4–8 wide, the gains don't pay.</p></div></section>
+<section class="study-section" id="vliw"><div class="kicker">Part 6 · Wider: several per cycle</div>
+<h2>VLIW: let the compiler do it</h2>
+<p><dfn data-also="VLIW">Very long instruction word</dfn> machines move scheduling into the compiler. Each long instruction bundles several operations the compiler has proved independent; the hardware just runs every slot together.</p>
+<table>
+<tr><th></th><th>For</th><th>Against</th></tr>
+<tr><td><b>Hardware</b></td><td>simple, wide, low power</td><td>—</td></tr>
+<tr><td><b>Scheduling</b></td><td>the compiler can study the whole program</td><td>cannot see run-time surprises such as a slow load</td></tr>
+<tr><td><b>Code</b></td><td>—</td><td>tied to one machine width; empty slots waste space</td></tr>
+</table>
+<p>VLIW thrives where code is regular — signal processing, AI accelerators (TI C6000 DSPs). It struggled on general code full of surprises (Intel Itanium). So CPUs went out of order and DSPs went VLIW.</p></section>
+<section class="study-section" id="smt"><div class="kicker">Part 6 · Wider: several per cycle</div>
+<h2>SMT: fill the gaps with another thread</h2>
+<div class="cols w32 mid">
+<div>
+<p>Even a wide out-of-order core rarely finds enough ready work in one thread to fill every slot every cycle.</p>
+<p><dfn data-also="SMT">Simultaneous multithreading</dfn> (Intel calls it Hyper-Threading) keeps the registers and PC of two or more threads, and issues from all of them into the same execution units each cycle.</p>
+<p>Cost: modest. Gain: typically 20–40% more throughput.</p>
+</div>
+<div>
+<svg height="270" viewbox="0 0 400 270" width="400">
+<text class="lbl xs b" text-anchor="middle" x="100" y="20">one thread</text>
+<text class="lbl xs b" text-anchor="middle" x="300" y="20">two threads (SMT)</text>
+<g>
+<rect class="box brand" height="34" width="34" x="30" y="34"></rect><rect class="box brand" height="34" width="34" x="66" y="34"></rect><rect class="box soft" height="34" width="34" x="102" y="34"></rect><rect class="box soft" height="34" width="34" x="138" y="34"></rect>
+<rect class="box brand" height="34" width="34" x="30" y="70"></rect><rect class="box soft" height="34" width="34" x="66" y="70"></rect><rect class="box soft" height="34" width="34" x="102" y="70"></rect><rect class="box soft" height="34" width="34" x="138" y="70"></rect>
+<rect class="box soft" height="34" width="34" x="30" y="106"></rect><rect class="box soft" height="34" width="34" x="66" y="106"></rect><rect class="box soft" height="34" width="34" x="102" y="106"></rect><rect class="box soft" height="34" width="34" x="138" y="106"></rect>
+<rect class="box brand" height="34" width="34" x="30" y="142"></rect><rect class="box brand" height="34" width="34" x="66" y="142"></rect><rect class="box brand" height="34" width="34" x="102" y="142"></rect><rect class="box soft" height="34" width="34" x="138" y="142"></rect>
+</g>
+<g>
+<rect class="box brand" height="34" width="34" x="230" y="34"></rect><rect class="box brand" height="34" width="34" x="266" y="34"></rect><rect class="box accent" height="34" width="34" x="302" y="34"></rect><rect class="box accent" height="34" width="34" x="338" y="34"></rect>
+<rect class="box brand" height="34" width="34" x="230" y="70"></rect><rect class="box accent" height="34" width="34" x="266" y="70"></rect><rect class="box accent" height="34" width="34" x="302" y="70"></rect><rect class="box soft" height="34" width="34" x="338" y="70"></rect>
+<rect class="box accent" height="34" width="34" x="230" y="106"></rect><rect class="box accent" height="34" width="34" x="266" y="106"></rect><rect class="box accent" height="34" width="34" x="302" y="106"></rect><rect class="box soft" height="34" width="34" x="338" y="106"></rect>
+<rect class="box brand" height="34" width="34" x="230" y="142"></rect><rect class="box brand" height="34" width="34" x="266" y="142"></rect><rect class="box brand" height="34" width="34" x="302" y="142"></rect><rect class="box accent" height="34" width="34" x="338" y="142"></rect>
+</g>
+<text class="lbl xs" text-anchor="middle" x="200" y="212">rows = cycles, squares = issue slots</text>
+<text class="lbl xs" text-anchor="middle" x="200" y="236">grey = wasted; thread 2 fills them</text>
+</svg>
+</div>
+</div>
+<p>The catch: the two threads now share <span class="fwd">caches</span> and units — a known route for leaks between them.</p></section>
+<section class="study-section" id="the-whole-family"><div class="kicker">Part 6 · Wider: several per cycle</div>
+<h2>The whole family</h2>
+<table class="tbl compact">
+<tr><th>Design</th><th>Per cycle</th><th>Scheduling</th><th>Reorders?</th><th>Cost</th><th>Examples</th></tr>
+<tr><td>Scalar in-order</td><td>1</td><td>—</td><td>no</td><td>tiny</td><td>PicoRV32, classic RISC</td></tr>
+<tr><td>Superscalar in-order</td><td>2–3</td><td>hardware, in order</td><td>no</td><td>low</td><td>Cortex-A53, RISC-V Rocket</td></tr>
+<tr><td>OoO superscalar</td><td>3–8</td><td>rename + stations + ROB</td><td>yes</td><td>high</td><td>Cortex-A76, Intel/AMD big cores, RISC-V BOOM</td></tr>
+<tr><td>VLIW</td><td>N (bundle)</td><td>the compiler</td><td>no</td><td>low hardware</td><td>Itanium, TI C6x DSPs</td></tr>
+</table>
+<p>Phones pair both kinds: small in-order cores for battery life and big out-of-order cores for speed ("big.LITTLE").</p></section>
+<section class="study-section" id="check-yourself"><div class="kicker">Part 6 · Wider: several per cycle</div>
+<h2>Check yourself</h2>
+<p class="q">1. In <span class="mono">add x1,x2,x3</span> then <span class="mono">sub x2,x4,x5</span>, what kind of dependence is there, and can renaming remove it?<br/>2. If instructions execute out of order, why does the program never see a scrambled result?</p>
+<div><span class="lbl">Answer</span>
+<p>1. WAR on x2 (add reads x2, sub later writes it): a false dependence. Renaming gives sub's x2 a new physical home, so yes.</p>
+<p>2. They commit in program order from the reorder buffer. Only committed results are official, so the visible state always moves forward in order.</p>
+</div></section>
+<section class="study-section" id="recap"><div class="kicker">Part 6 · Wider: several per cycle</div>
+<h2>Recap</h2>
+<ul>
+<li>In order, one slow instruction freezes everyone behind it; out-of-order execution runs ready work from a window and hides the delay.</li>
+<li>RAW is a true dependence. WAR and WAW are false — just reused names — and register renaming removes them.</li>
+<li>Tomasulo: reservation stations, tags and a common data bus that wakes waiting instructions. The scoreboard came first but stalled on false dependences.</li>
+<li>The reorder buffer commits in order: precise exceptions and clean recovery from wrong guesses. Speculation fills the window past branches; the load/store queue handles memory.</li>
+<li>Superscalar issues several per cycle (checks grow as N²); VLIW hands scheduling to the compiler; SMT fills idle slots with a second thread.</li>
+</ul></section>
+<section class="study-section" id="where-next"><div class="suite">µArch Lab · end of deck 3 of 11</div><h2>Out of order, in order.</h2><p class="sub">Next: the memory system — caches, coherence and the rules that let many cores share one memory.</p><div class="nextdeck"><a href="02-pipelining.html"><div class="dir">← Previous deck</div><div class="t">Pipelining &amp; Hazards</div></a><a href="04-memory-system.html"><div class="dir">Next deck →</div><div class="t">Caches &amp; Coherence</div></a></div></section>
+<div class="sectionhead"><div><h2>Continue studying</h2><p>These topics connect directly to the material above.</p></div></div><div class="grid two"><a class="card" href="out-of-order.html"><h3>Out-of-Order & Superscalar →</h3><p>Continue from pipeline hazards to scheduling, renaming and speculation.</p></a><a class="card" href="pipelining.html"><h3>← Pipelining & Hazards</h3><p>Review the five-stage pipeline and the hazards that motivate advanced execution.</p></a><a class="card" href="side-channels.html"><h3>Security & side channels →</h3><p>Connect speculative execution and cache behaviour to hardware security.</p></a></div>
+<footer><span>RISC-V Atlas · Study reference</span><span>Adapted from user-provided microarchitecture slides</span></footer></div></main></div><script src="../assets/app.js"></script></body></html>

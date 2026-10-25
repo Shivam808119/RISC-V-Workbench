@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f6f8fc"><title>Pipelining &amp; Hazards — RISC-V Atlas</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><header class="top"><button class="btn mobile" data-menu aria-label="Open navigation">☰</button><a class="brand" href="../index.html"><span class="mark">RV</span><span>RISC-V Atlas<small>Personal study workspace</small></span></a><div class="toplinks"><a href="../index.html">Overview</a><a href="../cores/index.html">Core directory</a><button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch color theme"><span class="theme-icon" data-theme-icon>☾</span><span class="theme-label" data-theme-label>Dark mode</span></button></div></header>
+<div class="layout"><aside class="sidebar"><div class="side-label">Study workspace</div><a class="navitem" href="../index.html"><span class="sym">⌂</span>Overview</a><div class="side-label">Microarchitecture</div><a class="navitem" href="pipelining.html"><span class="sym">⇢</span>Pipelining & hazards</a><a class="navitem" href="out-of-order.html"><span class="sym">↗</span>Out-of-order & superscalar</a><div class="side-label">Study topics</div><a class="navitem" href="memory.html"><span class="sym">▤</span>Memory systems</a><a class="navitem" href="interconnect.html"><span class="sym">⌘</span>On-chip interconnect</a><a class="navitem" href="interfaces.html"><span class="sym">⇄</span>Peripheral interfaces</a><a class="navitem" href="cores.html"><span class="sym">▣</span>RISC-V cores</a><a class="navitem" href="benchmarks.html"><span class="sym">▥</span>Benchmarks & metrics</a><a class="navitem" href="security.html"><span class="sym">◇</span>Memory & security</a><a class="navitem" href="side-channels.html"><span class="sym">◉</span>Side channels & hardware security</a><a class="navitem" href="libero.html"><span class="sym">⌁</span>Libero SoC flow</a><div class="side-label">Core directory</div><a class="navitem" href="../cores/index.html"><span class="sym">▦</span>10 core profiles</a></aside>
+<main class="main"><div class="articlehead"><div class="crumb"><a href="../index.html">Overview</a> / Microarchitecture</div><div class="eyebrow">Microarchitecture · Study reference · Deck 02 of 11</div><h1>Pipelining &amp; Hazards</h1><p class="lead">A structured study guide adapted from your 32-slide deck: pipeline stages, hazards, forwarding, branch prediction, deeper pipelines and CPI.</p><div class="tags"><span class="tag study">Adapted from your uploaded slide deck</span><span class="tag">32-slide source</span><span class="tag">Study notes + diagrams</span></div></div>
+<div class="content micro-content"><div class="callout idea"><b>Suggested study path</b><p>Read the concepts in order, inspect each diagram, and work through the self-check section near the end. The interactive slide widgets have been converted to static explanations so the page works locally and on GitHub Pages without the original deck runtime.</p><div class="mini-flow"><span>Understand the idea</span><span>Study the diagram/table</span><span>Try the questions</span><span>Review the recap</span></div></div>
+<section class="study-section" id="the-road-through-this-deck"><div class="kicker">Before we start</div><h2>The road through this deck</h2><p class="small muted">You should already know: the Overview deck (the Iron Law and CPI).</p><div class="road"><ol class="tight"><li><b>The idea: an assembly line</b></li><li><b>Hazards: when the line jams</b></li><li><b>Fixing data hazards</b></li><li><b>Fixing control hazards</b></li><li><b>Deeper pipelines, and the arithmetic of stalls</b></li></ol><div class="callout idea"><span class="lbl">By the end you will be able to</span><ul class="tight"><li>explain how a five-stage pipeline overlaps instructions, and why it improves throughput but not latency</li><li>recognise structural, data and control hazards in real code</li><li>show how forwarding removes most data stalls, and why a load followed by its use still costs one cycle</li><li>compare 1-bit and 2-bit branch predictors, and compute the effective CPI of a pipeline with stalls</li></ul></div></div></section>
+<section class="study-section chapter-divider" id="the-idea-an-assembly-line"><div class="pnum">01</div>
+<h2>The idea: an assembly line</h2>
+<p>Do not wait for one instruction to finish before starting the next.</p></section>
+<section class="study-section" id="laundry"><div class="kicker">Part 1 · The idea: an assembly line</div>
+<h2>Laundry, two ways</h2>
+<div class="fig">
+<svg height="300" viewbox="0 0 1140 300" width="1140">
+<text class="lbl sm b" text-anchor="start" x="10" y="30">One load at a time</text>
+<g>
+<rect class="box brand" height="34" rx="6" width="80" x="160" y="14"></rect><rect class="box accent" height="34" rx="6" width="80" x="240" y="14"></rect><rect class="box good" height="34" rx="6" width="80" x="320" y="14"></rect>
+<rect class="box brand" height="34" rx="6" width="80" x="400" y="54"></rect><rect class="box accent" height="34" rx="6" width="80" x="480" y="54"></rect><rect class="box good" height="34" rx="6" width="80" x="560" y="54"></rect>
+<rect class="box brand" height="34" rx="6" width="80" x="640" y="94"></rect><rect class="box accent" height="34" rx="6" width="80" x="720" y="94"></rect><rect class="box good" height="34" rx="6" width="80" x="800" y="94"></rect>
+<text class="lbl sm b" text-anchor="start" x="900" y="111">9 hours</text>
+</g>
+<g>
+<text class="lbl sm b" text-anchor="start" x="10" y="180">Overlapped</text>
+<rect class="box brand" height="34" rx="6" width="80" x="160" y="164"></rect><rect class="box accent" height="34" rx="6" width="80" x="240" y="164"></rect><rect class="box good" height="34" rx="6" width="80" x="320" y="164"></rect>
+<rect class="box brand" height="34" rx="6" width="80" x="240" y="204"></rect><rect class="box accent" height="34" rx="6" width="80" x="320" y="204"></rect><rect class="box good" height="34" rx="6" width="80" x="400" y="204"></rect>
+<rect class="box brand" height="34" rx="6" width="80" x="320" y="244"></rect><rect class="box accent" height="34" rx="6" width="80" x="400" y="244"></rect><rect class="box good" height="34" rx="6" width="80" x="480" y="244"></rect>
+<text class="lbl sm b" text-anchor="start" x="580" y="261">5 hours</text>
+</g>
+<g>
+<rect class="box brand" height="20" width="24" x="960" y="170"></rect><text class="lbl xs" text-anchor="start" x="994" y="180">wash</text>
+<rect class="box accent" height="20" width="24" x="960" y="200"></rect><text class="lbl xs" text-anchor="start" x="994" y="210">dry</text>
+<rect class="box good" height="20" width="24" x="960" y="230"></rect><text class="lbl xs" text-anchor="start" x="994" y="240">fold</text>
+</g>
+</svg>
+</div>
+<p>Each load still takes 3 hours. But as soon as load 1 moves to the dryer, load 2 can start washing. All three machines stay busy.</p></section>
+<section class="study-section" id="pipelining-a-processor"><div class="kicker">Part 1 · The idea: an assembly line</div>
+<h2>The same idea inside a processor</h2>
+<p><dfn>Pipelining</dfn> splits the work of each instruction into stages, and lets a different instruction occupy each stage at the same time.</p>
+<table>
+<tr><th>Stage</th><th>Name</th><th>What happens</th></tr>
+<tr><td><b>IF</b></td><td>instruction fetch</td><td>read the instruction at the PC; work out PC + 4</td></tr>
+<tr><td><b>ID</b></td><td>decode</td><td>work out what it is; read its source registers</td></tr>
+<tr><td><b>EX</b></td><td>execute</td><td>the ALU calculates, or compares for a branch</td></tr>
+<tr><td><b>MEM</b></td><td>memory</td><td>loads read memory, stores write it</td></tr>
+<tr><td><b>WB</b></td><td>write back</td><td>the result goes into the destination register</td></tr>
+</table>
+<p>Between stages sit <dfn data-also="pipeline register">pipeline registers</dfn>: they capture each stage's results at the clock edge and hand them to the next stage, like trays passed down the line.</p></section>
+<section class="study-section" id="the-staircase"><div class="kicker">Part 1 · The idea: an assembly line</div>
+<h2>The staircase: a space-time diagram</h2>
+<table class="tbl center compact mono">
+<tr><th style="text-align:left;font-family:var(--sans)">instruction</th><th>c1</th><th>c2</th><th>c3</th><th>c4</th><th>c5</th><th>c6</th><th>c7</th><th>c8</th><th>c9</th></tr>
+<tr><td style="text-align:left">lw x1,0(x2)</td><td>IF</td><td>ID</td><td>EX</td><td>MEM</td><td>WB</td><td></td><td></td><td></td><td></td></tr>
+<tr><td style="text-align:left">add x3,x4,x5</td><td></td><td>IF</td><td>ID</td><td>EX</td><td>MEM</td><td>WB</td><td></td><td></td><td></td></tr>
+<tr><td style="text-align:left">sub x6,x7,x8</td><td></td><td></td><td>IF</td><td>ID</td><td>EX</td><td>MEM</td><td>WB</td><td></td><td></td></tr>
+<tr><td style="text-align:left">or x9,x10,x11</td><td></td><td></td><td></td><td>IF</td><td>ID</td><td>EX</td><td>MEM</td><td>WB</td><td></td></tr>
+<tr><td style="text-align:left">and x12,x13,x14</td><td></td><td></td><td></td><td></td><td>IF</td><td>ID</td><td>EX</td><td>MEM</td><td>WB</td></tr>
+</table>
+<p>Rows are instructions, columns are clock cycles. By cycle 5 every stage is busy, and from then on <b>one instruction finishes every cycle</b>. Five instructions take 9 cycles instead of 25.</p></section>
+<section class="study-section" id="latency-and-throughput"><div class="kicker">Part 1 · The idea: an assembly line</div>
+<h2>Two numbers people mix up</h2>
+<div class="cols">
+<div>
+<h3><dfn>Latency</dfn></h3>
+<p class="small">How long <b>one</b> instruction takes from start to finish. Pipelining does <b>not</b> shorten it — each still passes through all five stages, and the pipeline registers even add a little delay.</p>
+</div>
+<div>
+<h3><dfn>Throughput</dfn></h3>
+<p class="small">How many instructions finish <b>per second</b>. This is what pipelining improves: one per cycle instead of one per five.</p>
+</div>
+</div>
+<p>There is a second win: each stage does about a fifth of the work, so the clock period can be about five times shorter.</p>
+<div><span class="lbl">Misconception</span><p>"Pipelining makes each instruction faster." It doesn't. A car still spends the same time on the assembly line — the factory just finishes more cars per hour.</p></div></section>
+<section class="study-section" id="the-ideal-speed-up"><div class="kicker">Part 1 · The idea: an assembly line</div>
+<h2>How much faster, ideally?</h2>
+<div class="cols w32 mid">
+<div>
+<p>With <b>N</b> stages and <b>k</b> instructions:</p>
+<ul>
+<li>without pipelining: <b class="mono">N × k</b> cycles</li>
+<li>with pipelining: <b class="mono">N + (k − 1)</b> cycles — N to fill the line, then one per cycle</li>
+</ul>
+<p>As k grows, the speed-up approaches <b>N</b>.</p>
+</div>
+<table>
+<tr><th>k</th><th>5 × k</th><th>5 + k − 1</th><th style="font-family:var(--sans)">speed-up</th></tr>
+<tr><td>5</td><td>25</td><td>9</td><td>2.8×</td></tr>
+<tr><td>100</td><td>500</td><td>104</td><td>4.8×</td></tr>
+<tr><td>10 000</td><td>50 000</td><td>10 004</td><td>5.0×</td></tr>
+</table>
+</div>
+<p>Real pipelines never quite reach N: stages are never perfectly equal, the pipeline registers cost time, and — above all — instructions get in each other's way.</p></section>
+<section class="study-section chapter-divider" id="hazards-when-the-line-jams"><div class="pnum">02</div>
+<h2>Hazards: when the line jams</h2>
+<p>The staircase assumed every instruction is independent. Real programs are not.</p></section>
+<section class="study-section" id="three-families-of-hazard"><div class="kicker">Part 2 · Hazards: when the line jams</div>
+<h2>Three families of hazard</h2>
+<p>A <dfn>hazard</dfn> is anything that stops the next instruction from going ahead in its planned cycle.</p>
+<div class="cols c3">
+<div><h3>Structural</h3><p class="small">Two instructions need the <b>same piece of hardware</b> in the same cycle.</p></div>
+<div><h3>Data</h3><p class="small">An instruction needs a <b>result</b> that an earlier one has not produced yet.</p></div>
+<div><h3>Control</h3><p class="small">The processor does not yet know <b>which instruction comes next</b>, because a branch is undecided.</p></div>
+</div>
+<div><span class="lbl">Analogy</span><p>On the laundry line: one machine that both washes and dries (structural); you can't fold what hasn't dried (data); you don't know if the next load is whites or colours until you've checked the basket (control).</p></div></section>
+<section class="study-section" id="structural-hazards"><div class="kicker">Part 2 · Hazards: when the line jams</div>
+<h2>Structural hazards: one tool, two hands</h2>
+<div class="cols w32 mid">
+<div>
+<p>Suppose instructions and data share <b>one memory port</b>. In cycle 4 of the staircase, <code>lw</code> is in MEM reading data while <code>or</code> is in IF fetching itself. Both want the port.</p>
+<p>The textbook fix: give the pipeline <b>separate memories for instructions and data</b>, and a register file that can be read and written in the same cycle.</p>
+<p>When duplicating is too costly — a single big divider, say — the later instruction simply has to wait.</p>
+</div>
+<div>
+<svg height="250" viewbox="0 0 400 250" width="400">
+<rect class="box brand" height="50" rx="8" width="150" x="20" y="20"></rect><text class="lbl sm b" text-anchor="middle" x="95" y="45">IF: or</text>
+<rect class="box accent" height="50" rx="8" width="150" x="20" y="170"></rect><text class="lbl sm b" text-anchor="middle" x="95" y="195">MEM: lw</text>
+<rect class="box bad" height="60" rx="8" width="130" x="250" y="95"></rect><text class="lbl sm b" text-anchor="middle" x="315" y="118">one memory</text><text class="lbl xs" text-anchor="middle" x="315" y="140">port</text>
+<path class="wire bad" d="M170,45 L250,110 M170,195 L250,140"></path>
+<text class="lbl xs bad b" text-anchor="middle" x="200" y="240">same cycle → conflict</text>
+</svg>
+</div>
+</div></section>
+<section class="study-section" id="data-hazards"><div class="kicker">Part 2 · Hazards: when the line jams</div>
+<h2>Data hazards: the result isn't ready</h2>
+<pre class="code lg" data-lang="asm">add x1, x2, x3   # writes x1 in WB, cycle 5
+sub x4, x1, x5   # reads x1 in ID, cycle 3 — too early!
+and x6, x1, x7   # reads x1 in ID, cycle 4 — still too early</pre>
+<p>Three patterns are possible when two instructions touch the same register:</p>
+<table>
+<tr><th>Name</th><th>Pattern</th><th>A problem in this in-order pipeline?</th></tr>
+<tr><td><b><dfn data-also="read after write">RAW</dfn></b></td><td>read after write — a later instruction needs an earlier one's result</td><td>yes: a <dfn>true dependence</dfn> — data really flows</td></tr>
+<tr><td><b><dfn data-also="write after read">WAR</dfn></b></td><td>write after read — a later write must not overtake an earlier read</td><td>no: everything happens in order</td></tr>
+<tr><td><b><dfn data-also="write after write">WAW</dfn></b></td><td>write after write — two writes must land in order</td><td>no: same reason</td></tr>
+</table>
+<p>WAR and WAW matter once instructions can run out of order — the next deck.</p></section>
+<section class="study-section" id="control-hazards"><div class="kicker">Part 2 · Hazards: when the line jams</div>
+<h2>Control hazards: which way next?</h2>
+<pre class="code lg" data-lang="asm">    beq x1, x2, TARGET   # equal? not known until EX
+    add x3, x4, x5       # already being fetched — wrong if the branch is taken
+    ...
+TARGET:
+    sub x6, x7, x8</pre>
+<ul>
+<li>By the time the branch is decided in EX, IF has already fetched the next instructions in line.</li>
+<li>If the branch is taken, those instructions are wrong and must be thrown away.</li>
+<li>Branches are 15–25% of all instructions, so this is the biggest single threat to a pipeline's speed.</li>
+</ul></section>
+<section class="study-section chapter-divider" id="fixing-data-hazards"><div class="pnum">03</div>
+<h2>Fixing data hazards</h2>
+<p>Wait if you must — but mostly, take a short cut.</p></section>
+<section class="study-section" id="stalls"><div class="kicker">Part 3 · Fixing data hazards</div>
+<h2>The simple fix: wait</h2>
+<p>A <dfn>stall</dfn> holds an instruction in its stage for a cycle, while an empty slot — a <dfn>bubble</dfn> — travels down the pipeline in its place.</p>
+<div class="callout warn"><b>Without forwarding</b><p>The dependent instruction waits until the producer writes its result to the register file. These stalls reduce throughput.</p></div>
+<p>Without help, <code>sub</code> waits two cycles: it can only read x1 in the same cycle that <code>add</code> writes it back. (The register file writes in the first half of a cycle and reads in the second.)</p></section>
+<section class="study-section" id="forwarding"><div class="kicker">Part 3 · Fixing data hazards</div>
+<h2>The clever fix: forwarding</h2>
+<div class="cols w32 mid">
+<div>
+<p>The <code>add</code>'s answer exists at the <b>end of its EX stage</b> (cycle 3). It is only <i>written</i> in cycle 5.</p>
+<p><dfn data-also="bypassing">Forwarding</dfn> (also called bypassing) adds wires that carry a fresh result straight from a pipeline register into the ALU input of the next instruction — skipping the register file.</p>
+<ul class="tight">
+<li><b>EX/MEM → EX</b>: from the instruction one ahead.</li>
+<li><b>MEM/WB → EX</b>: from the instruction two ahead.</li>
+</ul>
+</div>
+<div>
+<svg height="280" viewbox="0 0 420 280" width="420">
+<rect class="box" height="50" rx="6" width="80" x="20" y="30"></rect><text class="lbl sm b" text-anchor="middle" x="60" y="55">ID</text>
+<rect class="box accent" height="50" rx="6" width="80" x="140" y="30"></rect><text class="lbl sm b" text-anchor="middle" x="180" y="55">EX</text>
+<rect class="box" height="50" rx="6" width="80" x="260" y="30"></rect><text class="lbl sm b" text-anchor="middle" x="300" y="55">MEM</text>
+<path class="wire" d="M100,55 L140,55 M220,55 L260,55 M340,55 L380,55"></path>
+<path class="wire brand" d="M240,80 L240,170 L160,170 L160,82" style="stroke-width:4"></path>
+<path class="arrowhead brand" d="M153,94 L160,80 L167,94 Z"></path>
+<text class="lbl xs b brand" text-anchor="middle" x="200" y="196">forward: the result</text>
+<text class="lbl xs b brand" text-anchor="middle" x="200" y="218">loops straight back</text>
+<text class="lbl xs muted" text-anchor="middle" x="210" y="260">no trip through the register file</text>
+</svg>
+</div>
+</div>
+<p>With both paths, every ALU-to-ALU dependence costs <b>zero</b> stalls. Turn forwarding on below:</p></section>
+<section class="study-section" id="forwarding-on-and-off"><div class="kicker">Part 3 · Fixing data hazards</div>
+<h2>Try it: forwarding on and off</h2>
+<div class="callout tip"><b>With forwarding</b><p>ALU results can be routed from EX/MEM or MEM/WB directly to a later instruction’s EX inputs. This removes most ALU-to-ALU stalls, but not the immediate load-use stall.</p></div></section>
+<section class="study-section" id="the-load-use-case"><div class="kicker">Part 3 · Fixing data hazards</div>
+<h2>The one case forwarding can't fully fix</h2>
+<pre class="code lg" data-lang="asm">lw  x1, 0(x2)    # the value arrives at the END of MEM (cycle 4)
+add x3, x1, x4   # needs it at the START of EX (cycle 4)</pre>
+<ul>
+<li>A load's value only exists after the memory stage. The very next instruction wants it in the same cycle.</li>
+<li>No wire can carry a value backwards in time. So a load followed immediately by its use — a <dfn>load-use hazard</dfn> — costs <b>exactly one</b> stall, after which forwarding delivers the value.</li>
+</ul>
+<div><span class="lbl">The compiler's trick</span><p>Move an unrelated instruction between the load and its use. The bubble is filled with useful work. Pick "Load then use", then "Load, reordered", on the next slide.</p></div></section>
+<section class="study-section" id="try-the-load-use-case"><div class="kicker">Part 3 · Fixing data hazards</div>
+<h2>Try it: hide the load-use bubble</h2>
+<div class="callout tip"><b>Load-use timing</b><p>A load produces its value only at the end of MEM. If the next instruction needs it immediately, insert one bubble; forwarding can then deliver the loaded value to EX.</p><div class="mini-flow"><span>lw: IF</span><span>ID</span><span>EX</span><span>MEM → value ready</span><span>WB</span></div></div></section>
+<section class="study-section chapter-divider" id="fixing-control-hazards"><div class="pnum">04</div>
+<h2>Fixing control hazards</h2>
+<p>Don't wait for the branch — guess, and be right almost every time.</p></section>
+<section class="study-section" id="three-simple-options"><div class="kicker">Part 4 · Fixing control hazards</div>
+<h2>Three simple options</h2>
+<table class="tbl">
+<tr><th>Strategy</th><th>How it works</th><th>Cost</th></tr>
+<tr><td><b>Stall</b></td><td>fetch nothing until the branch is decided</td><td>pay the full delay on every branch</td></tr>
+<tr><td><b>Assume not taken</b></td><td>keep fetching the next instructions in line; if the branch is taken, <dfn>flush</dfn> them — throw them away</td><td>free when not taken; a penalty when taken</td></tr>
+<tr><td><b>Delayed branch</b></td><td>the ISA says the instruction after a branch always runs; the compiler fills that slot</td><td>bakes one pipeline's depth into the ISA forever</td></tr>
+</table>
+<p>MIPS and early SPARC used delayed branches. It aged badly as pipelines grew deeper, and RISC-V deliberately has none.</p></section>
+<section class="study-section" id="branch-prediction"><div class="kicker">Part 4 · Fixing control hazards</div>
+<h2>The real answer: predict</h2>
+<p><dfn>Branch prediction</dfn> guesses each branch's direction (and target) at fetch time, keeps fetching down the guessed path, and only pays a penalty when the guess was wrong.</p>
+<table class="tbl compact">
+<tr><th>Predictor</th><th>How it guesses</th><th>Typical accuracy</th></tr>
+<tr><td><b>Static</b></td><td>a fixed rule, e.g. "backward branches are taken" (loops jump back)</td><td>65–80%</td></tr>
+<tr><td><b>1-bit</b></td><td>"whatever this branch did last time"</td><td>misses twice per loop</td></tr>
+<tr><td><b>2-bit counter</b></td><td>needs two surprises in a row to change its mind</td><td>85–93%</td></tr>
+<tr><td><b>Correlating (gshare)</b></td><td>also looks at what the last few branches did</td><td>95% and more</td></tr>
+</table>
+<p>Modern predictors are right 95–99% of the time, so most branches cost nothing at all.</p></section>
+<section class="study-section" id="the-2-bit-counter"><div class="kicker">Part 4 · Fixing control hazards</div>
+<h2>The 2-bit saturating counter</h2>
+<div class="fig">
+<svg height="190" viewbox="0 0 1100 190" width="1100">
+<rect class="box bad" height="80" rx="40" width="220" x="20" y="40"></rect><text class="lbl sm b" text-anchor="middle" x="130" y="72">strongly not taken</text><text class="lbl xs mono" text-anchor="middle" x="130" y="98">00 → guess N</text>
+<rect class="box bad" height="80" rx="40" width="220" x="295" y="40"></rect><text class="lbl sm b" text-anchor="middle" x="405" y="72">weakly not taken</text><text class="lbl xs mono" text-anchor="middle" x="405" y="98">01 → guess N</text>
+<rect class="box good" height="80" rx="40" width="220" x="570" y="40"></rect><text class="lbl sm b" text-anchor="middle" x="680" y="72">weakly taken</text><text class="lbl xs mono" text-anchor="middle" x="680" y="98">10 → guess T</text>
+<rect class="box good" height="80" rx="40" width="220" x="845" y="40"></rect><text class="lbl sm b" text-anchor="middle" x="955" y="72">strongly taken</text><text class="lbl xs mono" text-anchor="middle" x="955" y="98">11 → guess T</text>
+<path class="wire good" d="M240,60 L293,60 M515,60 L568,60 M790,60 L843,60"></path>
+<path class="wire bad" d="M293,100 L240,100 M568,100 L515,100 M843,100 L790,100"></path>
+<text class="lbl sm" text-anchor="middle" x="550" y="160">a taken branch moves one step right; a not-taken branch one step left; the ends "saturate"</text>
+</svg>
+</div>
+<p>This is a <dfn>saturating counter</dfn>. The top bit is the guess. One odd result only nudges it from "strongly" to "weakly" — the guess does not flip.</p>
+<div><span class="lbl">Analogy</span><p>A friend who is late once is still "usually on time". It takes two late arrivals in a row before you change your expectation.</p></div></section>
+<section class="study-section" id="try-the-predictors"><div class="kicker">Part 4 · Fixing control hazards</div>
+<h2>Try it: 1-bit against 2-bit</h2>
+<div class="callout"><b>Predictor comparison</b><p>Compare static prediction, a 1-bit last-outcome predictor, and a 2-bit saturating counter. The 2-bit counter tolerates one unusual outcome without immediately reversing its prediction.</p></div></section>
+<section class="study-section" id="why-2-bits-win-on-loops"><div class="kicker">Part 4 · Fixing control hazards</div>
+<h2>Why 2 bits beat 1 bit on loops</h2>
+<p>A loop runs 100 times: its closing branch is taken 99 times, then not taken once to exit. The loop is entered again later.</p>
+<div class="cols">
+<div>
+<h3>1-bit: 2 misses per loop</h3>
+<p class="small">Wrong at the exit (it expected taken). Then it remembers "not taken" — and is wrong again on the first pass next time.</p>
+</div>
+<div>
+<h3>2-bit: 1 miss per loop</h3>
+<p class="small">Sits at strongly taken. The exit only nudges it to weakly taken — still guessing taken — so the next entry is right.</p>
+</div>
+</div>
+<p>On programs full of loops, halving the misses is a large win. In the widget's short loop of 4, the 2-bit counter is right 69% of the time, the 1-bit only 50%.</p></section>
+<section class="study-section" id="predicting-where-not-just-whether"><div class="kicker">Part 4 · Fixing control hazards</div>
+<h2>Predicting where, not just whether</h2>
+<ul>
+<li>Knowing a branch is taken is not enough: the fetch stage also needs the <b>target address</b>, and it needs it now.</li>
+<li>A <dfn data-also="BTB">branch target buffer</dfn> (BTB) is a small table, looked up with the branch's own address, that remembers where it jumped last time.</li>
+<li>Together, direction predictor + BTB let fetch redirect itself in the very cycle it meets a branch.</li>
+</ul></section>
+<section class="study-section chapter-divider" id="deeper-pipelines-and-the-arithmetic-of-stalls"><div class="pnum">05</div>
+<h2>Deeper pipelines, and the arithmetic of stalls</h2>
+<p>More stages give a faster clock — and a bigger bill for every mistake.</p></section>
+<section class="study-section" id="superpipelining"><div class="kicker">Part 5 · Deeper pipelines, and the arithmetic of stalls</div>
+<h2>Why not 20 stages?</h2>
+<p><dfn>Superpipelining</dfn> splits the work into many more, shorter stages — 10, 15, even 31 — so the clock can tick faster.</p>
+<div class="cols">
+<div><h3>Gains</h3><p class="small">A shorter clock period. More instructions in flight. Great for long, predictable streams of work.</p></div>
+<div><h3>Costs</h3><p class="small">A wrong branch guess now flushes ~15 instructions, not 2. Results travel further to be forwarded. Pipeline-register overhead eats into each shorter stage. Power rises.</p></div>
+</div>
+<p>The Pentium 4 pushed to 20–31 stages chasing gigahertz — and lost to designs with fewer stages and better CPI. Deep pipelines demand excellent prediction.</p></section>
+<section class="study-section" id="effective-cpi"><div class="kicker">Part 5 · Deeper pipelines, and the arithmetic of stalls</div>
+<h2>Worked example: effective CPI</h2>
+<p>A five-stage pipeline with forwarding. Ideal CPI = 1. Add the average stall cycles per instruction:</p>
+<ul class="tight">
+<li>Loads are 25% of instructions; half are followed straight away by their use → 1 stall each.</li>
+<li>Branches are 20%; 10% of them are mispredicted → 3 stall cycles each.</li>
+</ul>
+<pre>load-use stalls   = 0.25 × 0.50 × 1 = 0.125
+branch mispredict = 0.20 × 0.10 × 3 = 0.060
+---------------------------------------------
+effective CPI     = 1 + 0.125 + 0.060 = 1.185</pre>
+<p>About 16% slower than ideal. A better predictor (3% wrong) cuts the branch term to 0.018: CPI ≈ <b>1.14</b>.</p>
+<div><span class="lbl">Formula</span><p>effective CPI = 1 + Σ (how often × how many cycles lost)</p></div></section>
+<section class="study-section" id="check-yourself"><div class="kicker">Part 5 · Deeper pipelines, and the arithmetic of stalls</div>
+<h2>Check yourself</h2>
+<p class="q">1. A 5-stage pipeline runs 1 000 independent instructions. How many cycles?<br/>2. With forwarding, how many stalls does <span class="mono">lw x5,0(x1)</span> followed by <span class="mono">add x6,x5,x5</span> cost?<br/>3. Why might a real 5-stage pipeline only be 3–4× faster, not 5×?</p>
+<div><span class="lbl">Answer</span>
+<p>1. 5 + 999 = <b>1 004</b> cycles.</p>
+<p>2. <b>One</b> — a load-use hazard.</p>
+<p>3. Load-use bubbles, branch mispredictions, shared units, the time to fill and drain, and stages of unequal length (the slowest sets the clock).</p>
+</div></section>
+<section class="study-section" id="recap"><div class="kicker">Part 5 · Deeper pipelines, and the arithmetic of stalls</div>
+<h2>Recap</h2>
+<ul>
+<li>Pipelining overlaps the stages IF · ID · EX · MEM · WB. It raises throughput and the clock rate, not the latency of one instruction.</li>
+<li>Hazards: structural (shared hardware), data (RAW is the real one in order), control (branches).</li>
+<li>Forwarding removes almost all data stalls; a load followed by its use still costs one bubble, which compilers fill.</li>
+<li>Branch prediction answers control hazards: a 2-bit counter misses once per loop where 1 bit misses twice; a BTB supplies the target.</li>
+<li>Deeper pipelines clock faster but pay more per mistake. Effective CPI = 1 + Σ (frequency × penalty).</li>
+</ul></section>
+<section class="study-section" id="where-next"><div class="suite">µArch Lab · end of deck 2 of 11</div><h2>The line flows.</h2><p class="sub">Next: out-of-order execution — what to do when one slow instruction would otherwise hold up everyone behind it.</p><div class="nextdeck"><a href="01-overview.html"><div class="dir">← Previous deck</div><div class="t">Microarchitecture Overview</div></a><a href="03-ooo-superscalar.html"><div class="dir">Next deck →</div><div class="t">Out-of-Order &amp; Superscalar</div></a></div></section>
+<div class="sectionhead"><div><h2>Continue studying</h2><p>These topics connect directly to the material above.</p></div></div><div class="grid two"><a class="card" href="out-of-order.html"><h3>Out-of-Order & Superscalar →</h3><p>Continue from pipeline hazards to scheduling, renaming and speculation.</p></a><a class="card" href="pipelining.html"><h3>← Pipelining & Hazards</h3><p>Review the five-stage pipeline and the hazards that motivate advanced execution.</p></a><a class="card" href="side-channels.html"><h3>Security & side channels →</h3><p>Connect speculative execution and cache behaviour to hardware security.</p></a></div>
+<footer><span>RISC-V Atlas · Study reference</span><span>Adapted from user-provided microarchitecture slides</span></footer></div></main></div><script src="../assets/app.js"></script></body></html>

@@ -1,0 +1,206 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f6f8fc"><title>Benchmarks & Metrics — RISC-V Atlas</title><link rel="stylesheet" href="../assets/style.css"></head><body><header class="top"><button class="btn mobile" data-menu aria-label="Open navigation">☰</button><a class="brand" href="../index.html"><span class="mark">RV</span><span>RISC-V Atlas<small>Personal study workspace</small></span></a><div class="toplinks"><a href="../index.html">Overview</a><a href="../cores/index.html">Core directory</a><button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch color theme"><span class="theme-icon" data-theme-icon>☾</span><span class="theme-label" data-theme-label>Dark mode</span></button></div></header><div class="layout"><aside class="sidebar"><div class="side-label">Study workspace</div><a class="navitem" href="index.html"><span class="sym">⌂</span>Overview</a><div class="side-label">Studied topic files</div><a class="navitem" href="../topics/pipelining.html"><span class="sym">⇢</span>Pipelining & hazards</a><a class="navitem" href="../topics/out-of-order.html"><span class="sym">↗</span>Out-of-order & superscalar</a><a class="navitem" href="../topics/memory.html"><span class="sym">▤</span>Memory systems</a><a class="navitem" href="../topics/interconnect.html"><span class="sym">⌘</span>On-chip interconnect</a><a class="navitem" href="../topics/interfaces.html"><span class="sym">⇄</span>Peripheral interfaces</a><a class="navitem" href="../topics/cores.html"><span class="sym">▣</span>RISC-V cores</a><a class="navitem" href="../topics/benchmarks.html"><span class="sym">▥</span>Benchmarks & metrics</a><a class="navitem" href="../topics/security.html"><span class="sym">◇</span>Memory & security</a><a class="navitem" href="../topics/side-channels.html"><span class="sym">◉</span>Side channels & hardware security</a><a class="navitem" href="../topics/libero.html"><span class="sym">⌁</span>Libero SoC flow</a><div class="side-label">Core directory</div><a class="navitem" href="../cores/index.html"><span class="sym">▦</span>10 core profiles</a><div class="notice"><div><b>Study status</b><p>Pages are separated by topic. “In your files” means the subject appears in your uploaded material; it does not mean every subtopic is mastered.</p></div></div></aside><main class="main"><div class="articlehead"><div class="crumb"><a href="../index.html">Overview</a> / Study topics</div><div class="eyebrow">Performance · Study reference</div><h1>Benchmarks & Metrics</h1><p class="lead">Execution time, speed-up, latency, throughput, MIPS, CoreMark, Embench and benchmarking practice.</p><div class="tags"><span class="tag study">Present in your uploaded files</span><span class="tag">Performance</span></div></div><div class="content"><h2>Core idea</h2><p>Execution time is the basis for comparing how long a workload takes. Rate metrics can be useful, but they can mislead if workload and measurement conditions differ.</p><div class="callout"><b>How to use this page</b><p>Compare like with like: workload, compiler, configuration, clock, memory system, repetitions and measurement method all matter. This page is an organized prototype/reference; the uploaded files remain the detailed source material for the concepts already covered there.</p></div><h2>Topics in this study file</h2><ul><li>Execution time, speed-up, latency, throughput, MIPS, CoreMark, Embench and benchmarking practice.</li><li>Execution time is the basis for comparing how long a workload takes. Rate metrics can be useful, but they can mislead if workload and measurement conditions differ.</li><li>Compare like with like: workload, compiler, configuration, clock, memory system, repetitions and measurement method all matter.</li></ul><h2>Study checklist</h2><div class="callout"><b>Suggested revision</b><p>Read the relevant uploaded study file, explain the diagram without looking, then work through one example. The website marks subject presence, not mastery.</p></div></div><footer><span>RISC-V Atlas · Study reference</span><span>Light theme · Responsive · Local files</span></footer><div class="content micro-content imported-deck-content"><section class="study-section deck-intro" id="source-deck-benchmarks-metrics"><div class="eyebrow">Integrated source deck · original topics retained</div><h2>Benchmarks &amp; Metrics — expanded notes</h2><p>27-slide deck · performance measures and fair comparisons. This material is added alongside the existing Atlas notes; it does not replace them.</p><div class="mini-flow"><span>Read the concept</span><span>Inspect diagrams</span><span>Use tables and examples</span><span>Revise</span></div></section><section class="study-section" id="deck-what-faster-means"><div class="pnum">01</div>
+<h2>What "faster" means</h2>
+<p>Time is the only honest yardstick. Everything else is a stand-in for it.</p></section>
+<section class="study-section" id="deck-performance-is-time"><div class="kicker">Part 1 · What "faster" means</div>
+<h2>Performance is the inverse of time</h2>
+<div class="callout key"><span class="lbl">Definitions</span><p class="mono">performance = 1 ÷ execution time<br/>"X is n times faster than Y"  ⇔  n = time(Y) ÷ time(X)</p></div>
+<ul class="mt">
+<li><b>Example</b>: a program takes 15 s on machine Y and 10 s on X. X is 15 ÷ 10 = <b>1.5× faster</b>.</li>
+<li>Two different questions need two different measures: how long does <b>my one job</b> take (latency)? How many jobs does the machine finish <b>per hour</b> (throughput)? A laptop user cares about the first; a web server about the second.</li>
+<li>Every number in this deck is either a time, or a rate derived from one.</li>
+</ul></section>
+<section class="study-section" id="deck-rate-metrics"><div class="kicker">Part 1 · What "faster" means</div>
+<h2>Rate metrics, and why they mislead</h2>
+<div class="cols">
+<div>
+<h3>MIPS</h3>
+<p class="small">Millions of instructions per second = instruction count ÷ (time × 10⁶). Easy to quote — but an instruction on one ISA does different work from one on another, and even on one machine, a program of many simple instructions scores higher while finishing later.</p>
+</div>
+<div>
+<h3><dfn data-also="GFLOPS|MFLOPS">FLOPS</dfn></h3>
+<p class="small">Floating-point operations per second (MFLOPS, GFLOPS, TFLOPS). Meaningful for number-crunching — when everyone counts operations the same way, on the same algorithm.</p>
+</div>
+</div>
+<div>
+<h3>Worked example: higher MIPS, slower machine</h3>
+<p class="small">Machine A runs a job as 2.0 billion simple instructions in 1.0 s: <b>2 000 MIPS</b>. Machine B runs the same job as 1.2 billion richer instructions in 0.8 s: <b>1 500 MIPS</b>.</p>
+<p class="small">B has the lower MIPS — and finishes 1.25× sooner. MIPS rewarded A for doing more, smaller steps.</p>
+</div></section>
+<section class="study-section" id="deck-synthetic-benchmarks-dhrystone"><div class="pnum">02</div>
+<h2>Synthetic benchmarks: Dhrystone</h2>
+<p>A small made-up program, run in a loop, standing in for "typical" code.</p></section>
+<section class="study-section" id="deck-synthetic-benchmarks"><div class="kicker">Part 2 · Synthetic benchmarks: Dhrystone</div>
+<h2>Synthetic benchmarks</h2>
+<ul>
+<li>A <dfn>synthetic benchmark</dfn> is a small artificial program written to imitate the mix of operations in typical software — not a real application.</li>
+<li>Small and portable: easy to compile for any processor, even one with no operating system.</li>
+<li>But "typical" is a guess, and a small program behaves unlike a large one — as we'll see.</li>
+</ul>
+<table>
+<tr><th>Benchmark</th><th>Year</th><th>Exercises</th><th>Reported as</th></tr>
+<tr><td><b>Whetstone</b></td><td>1972</td><td>floating-point arithmetic and maths functions</td><td>MWIPS</td></tr>
+<tr><td><b><dfn>Dhrystone</dfn></b></td><td>1984</td><td>integer arithmetic, records, string copies and compares</td><td><span class="fwd">DMIPS</span></td></tr>
+</table></section>
+<section class="study-section" id="deck-dhrystone-and-dmips"><div class="kicker">Part 2 · Synthetic benchmarks: Dhrystone</div>
+<h2>Dhrystone and DMIPS</h2>
+<ul>
+<li>Dhrystone, by Reinhold Weicker, runs one loop over and over; the raw result is <b>Dhrystones per second</b> (loops per second).</li>
+<li>The VAX-11/780 — marketed as a "1 MIPS" machine — scored 1 757 Dhrystones per second. So the score is divided by 1 757 and called <dfn data-also="Dhrystone MIPS">DMIPS</dfn>: "how many VAXes is this?"</li>
+<li>Divide by the clock in MHz and you get <b>DMIPS/MHz</b> — work per clock tick, a CPI-like figure that compares designs at different clock rates.</li>
+</ul>
+<div>
+<h3>Worked example</h3>
+<p class="small mono">351 400 Dhrystones/s ÷ 1 757 = 200 DMIPS</p>
+<p class="small mono">200 DMIPS ÷ 100 MHz = 2.0 DMIPS/MHz</p>
+</div></section>
+<section class="study-section" id="deck-dhrystone-s-weaknesses"><div class="kicker">Part 2 · Synthetic benchmarks: Dhrystone</div>
+<h2>Why Dhrystone is retiring</h2>
+<ul>
+<li><b>Tiny</b>: code and data fit in any cache, so it never feels the memory wall.</li>
+<li><b>Compiler-sensitive</b>: clever compilers can remove or simplify parts of it. Much of the score comes from string copying, which some libraries hand-optimise for exactly this test.</li>
+<li><b>No enforced rules</b>: vendors chose their own compiler, flags and libraries. Two "DMIPS" figures are rarely comparable.</li>
+</ul>
+<div><span class="lbl">Rule</span><p>Treat a DMIPS number as a rough hint only — and only when the compiler and flags are stated.</p></div></section>
+<section class="study-section" id="deck-coremark-and-embench"><div class="pnum">03</div>
+<h2>CoreMark and Embench</h2>
+<p>Modern, open benchmarks for small and embedded processors.</p></section>
+<section class="study-section" id="deck-coremark"><div class="kicker">Part 3 · CoreMark and Embench</div>
+<h2>CoreMark: Dhrystone, done properly</h2>
+<p><dfn>CoreMark</dfn> (EEMBC, 2009) is a small, free benchmark for processor cores, designed to fix Dhrystone's flaws.</p>
+<div class="cols c4">
+<div><h3>Lists</h3><p class="small">find and sort in linked lists — pointer chasing</p></div>
+<div><h3>Matrices</h3><p class="small">multiply and add — loops and arithmetic</p></div>
+<div><h3>State machine</h3><p class="small">parse input — branchy, hard to predict</p></div>
+<div><h3>CRC</h3><p class="small">checks every result — so nothing can be optimised away</p></div>
+</div>
+<ul class="tight mt">
+<li>Results are computed from data the compiler can't see in advance, and self-checked.</li>
+<li>Run rules: run for at least <b>10 seconds</b>, don't change the source, and <b>report the compiler and flags</b> with every score.</li>
+<li>Score = iterations per second; <b>CoreMark/MHz</b> divides by the clock.</li>
+</ul></section>
+<section class="study-section" id="deck-try-the-calculators"><div class="kicker">Part 3 · CoreMark and Embench</div>
+<h2>Try it: compute the scores</h2>
+<div class="callout tip"><b>Concept visual</b><p>This deck contains an interactive slide visual. The surrounding notes explain the principle; this static study page preserves the concept without requiring the original slide runtime.</p></div>
+<p>Example: 4 000 CoreMark iterations in 10 s at 100 MHz → score 400 → <b>4.0 CoreMark/MHz</b>.</p></section>
+<section class="study-section" id="deck-reading-coremark-mhz"><div class="kicker">Part 3 · CoreMark and Embench</div>
+<h2>Reading CoreMark/MHz</h2>
+<table class="tbl compact">
+<tr><th>Kind of core</th><th>Rough CoreMark/MHz</th><th>Why</th></tr>
+<tr><td>tiny multicycle or bit-serial</td><td>well below 1</td><td>many cycles per instruction</td></tr>
+<tr><td>simple in-order microcontroller</td><td>about 2–4</td><td>pipelined, about one instruction per cycle</td></tr>
+<tr><td>superscalar in-order</td><td>about 3–5</td><td>sometimes two per cycle</td></tr>
+<tr><td>wide out-of-order</td><td>about 5–8 and more</td><td>many per cycle, good prediction</td></tr>
+</table>
+<p>Rough orders of magnitude for one core, from published results; exact figures depend on compiler and flags — which is the point of reporting them.</p>
+<div><span class="lbl">Per MHz is not the whole story</span><p>A design with high CoreMark/MHz may only reach a low clock rate. The chip's real speed is CoreMark/MHz × MHz — the Iron Law again.</p></div></section>
+<section class="study-section" id="deck-beyond-coremark"><div class="kicker">Part 3 · CoreMark and Embench</div>
+<h2>More embedded benchmarks</h2>
+<div class="cols c3">
+<div><h3><dfn>Embench</dfn></h3><p class="small">A free, open suite (2019) of about 20 real embedded programs. Reports speed relative to a reference core <b>and code size</b>, both as <dfn data-also="geometric means">geometric mean</dfn>s (the n-th root of the product of the ratios — explained below) — because in embedded, memory costs money.</p></div>
+<div><h3>CoreMark-PRO</h3><p class="small">EEMBC's bigger sibling: several integer and floating-point workloads with larger data, closer to real applications.</p></div>
+<div><h3>ULPMark</h3><p class="small">EEMBC's energy benchmark for microcontrollers: how much energy a standard task costs.</p></div>
+</div></section>
+<section class="study-section" id="deck-big-system-benchmarks"><div class="pnum">04</div>
+<h2>Big-system benchmarks</h2>
+<p>Real applications, whole systems, and specialised workloads.</p></section>
+<section class="study-section" id="deck-spec-cpu"><div class="kicker">Part 4 · Big-system benchmarks</div>
+<h2>SPEC CPU 2017</h2>
+<ul>
+<li>From the Standard Performance Evaluation Corporation: 43 benchmarks built from <b>real applications</b> — compilers, compression, physics, weather, chess…</li>
+<li>Four suites: integer and floating point, each measured two ways:</li>
+</ul>
+<div>
+<div class="card top-brand"><h3>SPECspeed</h3><p class="small">One copy of each program: how quickly does one job finish? (latency)</p></div>
+<div class="card top-accent"><h3>SPECrate</h3><p class="small">Many copies at once: how much work per hour? (throughput — fills every core)</p></div>
+</div>
+<ul class="tight mt">
+<li>Each result is a <b>ratio</b> against a fixed reference machine's time; the overall score is the geometric mean of the ratios.</li>
+<li><b>Base</b> results use the same conservative flags for all programs; <b>peak</b> allows per-program tuning.</li>
+<li>Strict run and reporting rules, and published, reviewed results.</li>
+</ul></section>
+<section class="study-section" id="deck-the-specialists"><div class="kicker">Part 4 · Big-system benchmarks</div>
+<h2>The specialists</h2>
+<table class="tbl compact">
+<tr><th>Benchmark</th><th>Measures</th><th>Unit</th><th>Used for</th></tr>
+<tr><td><b>LINPACK / HPL</b></td><td>solving a huge dense system of linear equations</td><td>FLOPS</td><td>the TOP500 supercomputer list</td></tr>
+<tr><td><b>STREAM</b></td><td>sustained memory bandwidth: copy, scale, add, triad over big arrays</td><td>GB/s</td><td>the memory wall, the roofline</td></tr>
+<tr><td><b>MLPerf</b></td><td>training and inference of standard AI models</td><td>time to train, queries/s</td><td>AI chips and systems</td></tr>
+<tr><td><b>Whole-device apps</b></td><td>browsing, photos, games</td><td>scores</td><td>phones and laptops</td></tr>
+</table>
+<p>Each measures one thing well. LINPACK rewards floating-point units and says little about a web server; STREAM ignores computation entirely.</p></section>
+<section class="study-section" id="deck-which-benchmark-when"><div class="kicker">Part 4 · Big-system benchmarks</div>
+<h2>Which benchmark for which question?</h2>
+<table class="tbl compact">
+<tr><th>Question</th><th>Reach for</th></tr>
+<tr><td>How efficient is this small core, clock for clock?</td><td>CoreMark/MHz, Embench</td></tr>
+<tr><td>How big will my embedded program be?</td><td>Embench code size</td></tr>
+<tr><td>How fast is this server or desktop CPU on real code?</td><td>SPEC CPU (speed or rate)</td></tr>
+<tr><td>How many floating-point operations can this machine sustain?</td><td>LINPACK / HPL</td></tr>
+<tr><td>Is my program limited by memory?</td><td>STREAM, plus the roofline</td></tr>
+<tr><td>How good is this AI accelerator?</td><td>MLPerf</td></tr>
+<tr><td>How fast is <b>my</b> application?</td><td>run <b>my</b> application — always the best benchmark</td></tr>
+</table></section>
+<section class="study-section" id="deck-summarising-and-comparing"><div class="pnum">05</div>
+<h2>Summarising and comparing</h2>
+<p>Many numbers into one — without fooling yourself.</p></section>
+<section class="study-section" id="deck-which-mean"><div class="kicker">Part 5 · Summarising and comparing</div>
+<h2>Which mean?</h2>
+<ul>
+<li>For raw times of a fixed workload, the <b>total</b> (or arithmetic mean) of times is honest: it is how long the work takes.</li>
+<li>For results <b>normalised to a reference machine</b>, use the geometric mean: the n-th root of the product of n ratios. It gives the same ranking whichever machine is the reference.</li>
+</ul>
+<div class="callout tip"><b>Concept visual</b><p>This deck contains an interactive slide visual. The surrounding notes explain the principle; this static study page preserves the concept without requiring the original slide runtime.</p></div></section>
+<section class="study-section" id="deck-efficiency-metrics"><div class="kicker">Part 5 · Summarising and comparing</div>
+<h2>Faster isn't everything: efficiency</h2>
+<div class="cols c3">
+<div><h3><dfn data-also="perf/W|performance per watt">Performance per watt</dfn></h3><p class="small">CoreMark/mW, SPECrate per watt. Decides battery life and data-centre electricity bills.</p></div>
+<div><h3>Energy per operation</h3><p class="small">Picojoules per instruction. Energy = power × time, so a fast chip that finishes and sleeps can use less energy than a slow, frugal one.</p></div>
+<div><h3>Performance per area</h3><p class="small">CoreMark/mm². Silicon costs money; this is how many cores fit on a die.</p></div>
+</div>
+<div>
+<h3>Worked example</h3>
+<p class="small">Core X: 4.0 CoreMark/MHz at 1 000 MHz, 0.5 W → 4 000 CoreMark, <b>8 000 CoreMark/W</b>.<br/>Core Y: 6.0 CoreMark/MHz at 2 000 MHz, 3 W → 12 000 CoreMark, <b>4 000 CoreMark/W</b>.</p>
+<p class="small">Y is 3× faster; X does twice the work per joule. Which is "better" depends on the product — a server or a watch.</p>
+</div></section>
+<section class="study-section" id="deck-benchmarking-honestly"><div class="pnum">06</div>
+<h2>Benchmarking honestly</h2>
+<p>How results get bent, and how to report them straight.</p></section>
+<section class="study-section" id="deck-tricks-and-traps"><div class="kicker">Part 6 · Benchmarking honestly</div>
+<h2>Tricks and traps</h2>
+<table class="tbl compact">
+<tr><th>Trap</th><th>What happens</th></tr>
+<tr><td><b>Benchmark-specific tuning</b></td><td>compilers or libraries recognise a famous benchmark and special-case it</td></tr>
+<tr><td><b>Hidden flags</b></td><td>the headline uses aggressive flags; your code won't</td></tr>
+<tr><td><b>Cherry-picking</b></td><td>quote only the tests you win</td></tr>
+<tr><td><b>Fits in cache</b></td><td>a tiny benchmark never touches main memory, so it hides the memory wall</td></tr>
+<tr><td><b>Unequal systems</b></td><td>more memory, a faster disk or a higher power limit on one side</td></tr>
+<tr><td><b>Peak vs sustained</b></td><td>a burst at turbo clock, before the chip heats up and slows down</td></tr>
+</table></section>
+<section class="study-section" id="deck-reporting-checklist"><div class="kicker">Part 6 · Benchmarking honestly</div>
+<h2>A reporting checklist</h2>
+<ul>
+<li>State the <b>exact workload</b> and input size.</li>
+<li>State the <b>system</b>: core, clock (fixed or turbo), memory, cache sizes.</li>
+<li>State the <b>software</b>: compiler and version, every flag, libraries.</li>
+<li><b>Repeat</b> runs; report the median and the spread; let caches and clocks warm up first.</li>
+<li>Use the <b>right mean</b>, and show the per-program results too.</li>
+<li>Make it <b>reproducible</b>: someone else should get the same number.</li>
+</ul>
+<div><span class="lbl">The golden rule</span><p>The best benchmark is the program you actually care about. Every other score is an estimate of it.</p></div></section>
+<section class="study-section" id="deck-check-yourself"><div class="kicker">Part 6 · Benchmarking honestly</div>
+<h2>Check yourself</h2>
+<p class="q">1. A core at 250 MHz scores 1 230 000 Dhrystones/s. What are its DMIPS and DMIPS/MHz?<br/>2. A CoreMark run completes 30 000 iterations in 15 s on a 500 MHz core. Score and CoreMark/MHz?<br/>3. Why is a geometric mean used for SPEC's ratios?</p>
+<div><span class="lbl">Answer</span>
+<p>1. 1 230 000 ÷ 1 757 ≈ <b>700 DMIPS</b>; ÷ 250 = <b>2.8 DMIPS/MHz</b>.</p>
+<p>2. 30 000 ÷ 15 = <b>2 000</b>; ÷ 500 = <b>4.0 CoreMark/MHz</b>.</p>
+<p>3. The results are ratios against a reference; the geometric mean gives the same ranking whichever reference is chosen, where an arithmetic mean of ratios can flip.</p>
+</div></section>
+<section class="study-section" id="deck-recap"><div class="kicker">Part 6 · Benchmarking honestly</div>
+<h2>Recap</h2>
+<ul>
+<li>Performance = 1 ÷ time. Rate metrics such as MIPS mislead across ISAs and programs; FLOPS only for like-for-like number crunching.</li>
+<li>Dhrystone → DMIPS (÷ 1 757) and DMIPS/MHz: historic, tiny, easily gamed. CoreMark fixes it with self-checking, run rules and CoreMark/MHz; Embench adds open, real programs and code size.</li>
+<li>SPEC CPU 2017 uses real applications, speed and rate, ratios against a reference; LINPACK, STREAM and MLPerf each measure one thing.</li>
+<li>Geometric mean for normalised results; compare efficiency per watt, per joule and per mm² as well as speed.</li>
+<li>Report workload, system, compiler and flags; repeat runs. The best benchmark is your own program.</li>
+</ul></section></div></main></div><script src="../assets/app.js"></script></body></html>

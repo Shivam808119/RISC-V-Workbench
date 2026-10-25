@@ -1,0 +1,176 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f6f8fc"><title>RISC-V Cores — RISC-V Atlas</title><link rel="stylesheet" href="../assets/style.css"></head><body><header class="top"><button class="btn mobile" data-menu aria-label="Open navigation">☰</button><a class="brand" href="../index.html"><span class="mark">RV</span><span>RISC-V Atlas<small>Personal study workspace</small></span></a><div class="toplinks"><a href="../index.html">Overview</a><a href="../cores/index.html">Core directory</a><button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch color theme"><span class="theme-icon" data-theme-icon>☾</span><span class="theme-label" data-theme-label>Dark mode</span></button></div></header><div class="layout"><aside class="sidebar"><div class="side-label">Study workspace</div><a class="navitem" href="index.html"><span class="sym">⌂</span>Overview</a><div class="side-label">Studied topic files</div><a class="navitem" href="../topics/pipelining.html"><span class="sym">⇢</span>Pipelining & hazards</a><a class="navitem" href="../topics/out-of-order.html"><span class="sym">↗</span>Out-of-order & superscalar</a><a class="navitem" href="../topics/memory.html"><span class="sym">▤</span>Memory systems</a><a class="navitem" href="../topics/interconnect.html"><span class="sym">⌘</span>On-chip interconnect</a><a class="navitem" href="../topics/interfaces.html"><span class="sym">⇄</span>Peripheral interfaces</a><a class="navitem" href="../topics/cores.html"><span class="sym">▣</span>RISC-V cores</a><a class="navitem" href="../topics/benchmarks.html"><span class="sym">▥</span>Benchmarks & metrics</a><a class="navitem" href="../topics/security.html"><span class="sym">◇</span>Memory & security</a><a class="navitem" href="../topics/side-channels.html"><span class="sym">◉</span>Side channels & hardware security</a><a class="navitem" href="../topics/libero.html"><span class="sym">⌁</span>Libero SoC flow</a><div class="side-label">Core directory</div><a class="navitem" href="../cores/index.html"><span class="sym">▦</span>10 core profiles</a><div class="notice"><div><b>Study status</b><p>Pages are separated by topic. “In your files” means the subject appears in your uploaded material; it does not mean every subtopic is mastered.</p></div></div></aside><main class="main"><div class="articlehead"><div class="crumb"><a href="../index.html">Overview</a> / Study topics</div><div class="eyebrow">Core study · Study reference</div><h1>RISC-V Cores</h1><p class="lead">A comparison map for open RISC-V core designs, their goals and implementation trade-offs.</p><div class="tags"><span class="tag study">Present in your uploaded files</span><span class="tag">Core study</span></div></div><div class="content"><h2>Core idea</h2><p>RISC-V is an instruction-set architecture (ISA), not one particular processor. Many cores implement the ISA with different area, performance and feature trade-offs.</p><div class="callout"><b>How to use this page</b><p>A core's actual MMU, cache, privilege, debug and extension support must be checked against its documentation and configuration. This page is an organized prototype/reference; the uploaded files remain the detailed source material for the concepts already covered there.</p></div><h2>Core comparison directory</h2><p>Open a dedicated page for each core. This is a directory prototype: detailed facts such as cache/MMU support, supported ISA extensions, FPGA readiness and performance must be verified against each project’s official documentation.</p><div class="corelist"><a class="corecard" href="../cores/serv.html"><strong>SERV ↗</strong><p>Tiny bit-serial core</p></a><a class="corecard" href="../cores/picorv32.html"><strong>PicoRV32 ↗</strong><p>Small, size-conscious RV32 core</p></a><a class="corecard" href="../cores/ibex.html"><strong>Ibex ↗</strong><p>Small embedded in-order core</p></a><a class="corecard" href="../cores/vega.html"><strong>VEGA ↗</strong><p>RISC-V core/project profile</p></a><a class="corecard" href="../cores/cv32e40p.html"><strong>CV32E40P ↗</strong><p>Embedded pipelined core</p></a><a class="corecard" href="../cores/rocket.html"><strong>Rocket Core ↗</strong><p>Configurable in-order core</p></a><a class="corecard" href="../cores/sweRV-eh1.html"><strong>SweRV EH1 ↗</strong><p>Embedded superscalar core</p></a><a class="corecard" href="../cores/vexriscv.html"><strong>VexRiscv ↗</strong><p>Configurable SpinalHDL core</p></a><a class="corecard" href="../cores/sonicboom.html"><strong>SonicBOOM ↗</strong><p>Out-of-order core research/design</p></a><a class="corecard" href="../cores/boom.html"><strong>BOOM ↗</strong><p>Berkeley Out-of-Order Machine</p></a></div></div><footer><span>RISC-V Atlas · Study reference</span><span>Light theme · Responsive · Local files</span></footer><div class="content micro-content imported-deck-content"><section class="study-section deck-intro" id="source-deck-real-risc-v-cores"><div class="eyebrow">Integrated source deck · original topics retained</div><h2>Real RISC-V Cores — expanded notes</h2><p>22-slide deck · core families and design trade-offs. This material is added alongside the existing Atlas notes; it does not replace them.</p><div class="mini-flow"><span>Read the concept</span><span>Inspect diagrams</span><span>Use tables and examples</span><span>Revise</span></div></section><section class="study-section" id="deck-why-risc-v-is-the-perfect-specimen"><div class="pnum">01</div>
+<h2>Why RISC-V is the perfect specimen</h2>
+<p>For the first time, the insides of real processors are open to read.</p></section>
+<section class="study-section" id="deck-open-cores"><div class="kicker">Part 1 · Why RISC-V is the perfect specimen</div>
+<h2>You can open the box</h2>
+<ul>
+<li>x86 and Arm cores are proprietary: you can measure them, never read their design.</li>
+<li>RISC-V is an open standard, and there is a whole family of <b>open-source cores</b> whose full hardware descriptions anyone can download, simulate, change and even manufacture.</li>
+<li>They all run the same instructions, yet differ by about <b>10 000×</b> in size and speed. Compile one program, run it on any of them, and feel the microarchitecture.</li>
+</ul>
+<div><span class="lbl">Misconception</span><p>"RISC-V is a chip." It isn't — it is an instruction set, a specification. Saying "a RISC-V" is like saying "an x86" without naming a Ryzen or a Core i9.</p></div></section>
+<section class="study-section" id="deck-the-spectrum"><div class="kicker">Part 1 · Why RISC-V is the perfect specimen</div>
+<h2>The spectrum of open cores</h2>
+<div class="fig">
+<svg height="330" viewbox="0 0 1140 330" width="1140">
+<path class="wire" d="M70,290 L1110,290"></path><path class="arrowhead" d="M1096,283 L1110,290 L1096,297 Z"></path>
+<path class="wire" d="M70,290 L70,20"></path><path class="arrowhead" d="M63,34 L70,20 L77,34 Z"></path>
+<text class="lbl sm muted" text-anchor="middle" x="590" y="320">size (area) →</text>
+<text class="lbl sm muted" text-anchor="middle" transform="rotate(-90 40 160)" x="40" y="160">speed →</text>
+<g><circle class="box soft" cx="130" cy="262" r="20"></circle><text class="lbl sm b fwd" text-anchor="start" x="160" y="262">SERV — bit-serial</text></g>
+<g><circle class="box soft" cx="250" cy="226" r="24"></circle><text class="lbl sm b fwd" text-anchor="start" x="282" y="226">PicoRV32 — multicycle</text></g>
+<g><circle class="box brand" cx="460" cy="168" r="30"></circle><text class="lbl sm b" text-anchor="start" x="500" y="168">Rocket — 5-stage, in order</text></g>
+<g><circle class="box brand" cx="600" cy="128" r="32"></circle><text class="lbl sm b" text-anchor="start" x="642" y="128">CVA6 — 6-stage, in order</text></g>
+<g><circle class="box accent" cx="820" cy="84" r="38"></circle><text class="lbl sm b" text-anchor="start" x="868" y="84">BOOM — out of order</text></g>
+<g><circle class="box accent" cx="1000" cy="44" r="40"></circle><text class="lbl sm b" text-anchor="middle" x="990" y="104">XiangShan — server class</text></g>
+</svg>
+</div>
+<p>Each step to the right spends more area to buy more performance. Not to scale.</p></section>
+<section class="study-section" id="deck-tiny-cores-serv-and-picorv32"><div class="pnum">02</div>
+<h2>Tiny cores: SERV and PicoRV32</h2>
+<p>When the goal is the smallest possible core, give up speed on purpose.</p></section>
+<section class="study-section" id="deck-serv"><div class="kicker">Part 2 · Tiny cores: SERV and PicoRV32</div>
+<h2>SERV: one bit at a time</h2>
+<div class="cols w32 mid">
+<div>
+<p>SERV (by Olof Kindgren) is a complete RV32I core with a <b>1-bit-wide</b> datapath. Its ALU is essentially a single full adder.</p>
+<p>A 32-bit add takes <b>32 cycles</b>, one bit per cycle, lowest bit first, with the carry saved between cycles. Such a design is <dfn>bit-serial</dfn>.</p>
+<p>It fits in a few hundred FPGA cells — small enough for hundreds on one chip. It runs a real-time operating system.</p>
+</div>
+<div>
+<svg height="270" viewbox="0 0 420 270" width="420">
+<rect class="box brand" height="40" width="120" x="30" y="30"></rect><text class="lbl xs mono" text-anchor="middle" x="90" y="50">a → 1 bit</text>
+<rect class="box brand" height="40" width="120" x="30" y="90"></rect><text class="lbl xs mono" text-anchor="middle" x="90" y="110">b → 1 bit</text>
+<rect class="box accent" height="80" rx="10" width="110" x="210" y="50"></rect><text class="lbl sm b" text-anchor="middle" x="265" y="84">1 full</text><text class="lbl sm b" text-anchor="middle" x="265" y="106">adder</text>
+<path class="wire" d="M150,50 L210,70 M150,110 L210,110 M320,90 L380,90"></path>
+<text class="lbl xs b" text-anchor="start" x="392" y="90">sum</text>
+<path class="wire good" d="M265,130 L265,180 L180,180 L180,140 L210,128"></path>
+<text class="lbl xs b good" text-anchor="middle" x="222" y="204">carry, saved for</text>
+<text class="lbl xs b good" text-anchor="middle" x="222" y="226">the next cycle</text>
+<text class="lbl xs muted" text-anchor="middle" x="210" y="260">×32 cycles = one 32-bit add</text>
+</svg>
+</div>
+</div></section>
+<section class="study-section" id="deck-picorv32"><div class="kicker">Part 2 · Tiny cores: SERV and PicoRV32</div>
+<h2>PicoRV32: small and pragmatic</h2>
+<ul>
+<li>PicoRV32 (by Claire Wolf) has a full 32-bit datapath, but runs each instruction over <b>several</b> cycles, reusing the same hardware for each step.</li>
+<li>It is a single, readable Verilog file; small, easy to drop into a design, and able to run at a high clock rate.</li>
+<li>One of the most widely used open cores in hobby and industrial FPGA designs.</li>
+</ul></section>
+<section class="study-section" id="deck-three-ways-to-organise"><div class="kicker">Part 2 · Tiny cores: SERV and PicoRV32</div>
+<h2>Single-cycle, multicycle, pipelined</h2>
+<table class="tbl">
+<tr><th>Style</th><th>How</th><th>Cost</th><th>CPI</th></tr>
+<tr><td><b>Single-cycle</b></td><td>every instruction in one long cycle</td><td>the clock must fit the slowest instruction</td><td>1, but a slow clock</td></tr>
+<tr><td><b><dfn>Multicycle</dfn></b></td><td>each instruction in several short steps, one after another, sharing one ALU</td><td>small</td><td>&gt; 1</td></tr>
+<tr><td><b>Pipelined</b></td><td>the steps overlap across instructions</td><td>pipeline registers + hazard logic</td><td>close to 1</td></tr>
+</table>
+<div><span class="lbl">In one line</span><p>Multicycle spends cycles to save area; pipelining spends area to save cycles. Bit-serial takes multicycle to the extreme by also shrinking the datapath to one bit.</p></div></section>
+<section class="study-section" id="deck-in-order-pipelines-rocket-and-friends"><div class="pnum">03</div>
+<h2>In-order pipelines: Rocket and friends</h2>
+<p>The textbook five-stage pipeline, made real.</p></section>
+<section class="study-section" id="deck-rocket"><div class="kicker">Part 3 · In-order pipelines: Rocket and friends</div>
+<h2>Rocket: the reference in-order core</h2>
+<ul>
+<li>Rocket, from UC Berkeley, is a <b>5-stage, in-order, single-issue</b> pipeline: fetch, decode, execute, memory, write back.</li>
+<li>Full forwarding, branch prediction, optional floating point, virtual memory with TLBs, and L1 caches. It boots Linux.</li>
+<li>It is the Pipelining deck's diagram in real hardware: the same stages, the same forwarding paths, the same branch decided in EX.</li>
+</ul>
+<div class="cols mt">
+<div><h3>In products</h3><p class="small">SiFive, founded by Rocket's authors, sells descendants: the E-series for microcontrollers and the S-series for 64-bit real-time work.</p></div>
+<div><h3>The Arm analogy</h3><p class="small">Rocket sits in the same niche as Arm's Cortex-A53 — the small, frugal, in-order "little" core inside countless phones.</p></div>
+</div></section>
+<section class="study-section" id="deck-out-of-order-boom-cva6-xiangshan"><div class="pnum">04</div>
+<h2>Out of order: BOOM, CVA6, XiangShan</h2>
+<p>The full arsenal: wide issue, renaming, dynamic scheduling, speculation.</p></section>
+<section class="study-section" id="deck-boom"><div class="kicker">Part 4 · Out of order: BOOM, CVA6, XiangShan</div>
+<h2>BOOM: the Berkeley Out-of-Order Machine</h2>
+<table class="tbl compact">
+<tr><th>BOOM stage</th><th>What it does</th><th>The idea behind it</th></tr>
+<tr><td><b>Fetch</b></td><td>fetches several instructions per cycle, with an advanced predictor</td><td>branch prediction, speculation</td></tr>
+<tr><td><b>Decode</b></td><td>decodes several per cycle</td><td>superscalar width</td></tr>
+<tr><td><b>Rename</b></td><td>maps x0–x31 onto a larger physical register file</td><td>register renaming</td></tr>
+<tr><td><b>Issue</b></td><td>instructions wait in issue queues, fire when ready</td><td>reservation stations</td></tr>
+<tr><td><b>Execute</b></td><td>several units in parallel: ALUs, memory, floating point</td><td>multiple functional units</td></tr>
+<tr><td><b>Commit</b></td><td>retires in order from the reorder buffer</td><td>precise exceptions</td></tr>
+</table>
+<p>Width, reorder-buffer size, register count and predictor size are all parameters: dial them, regenerate, measure.</p></section>
+<section class="study-section" id="deck-cva6-and-xiangshan"><div class="kicker">Part 4 · Out of order: BOOM, CVA6, XiangShan</div>
+<h2>Two more points on the map</h2>
+<div class="cols">
+<div><h3>CVA6 (Ariane)</h3><p class="small">From ETH Zürich, now the OpenHW Group: a 6-stage, in-order, 64-bit application core in SystemVerilog that boots Linux. A scoreboard lets slow operations finish out of order — a pragmatic point between Rocket and BOOM. Built for industrial-grade verification.</p></div>
+<div><h3>XiangShan</h3><p class="small">From the Chinese Academy of Sciences: an aggressive, wide, deep out-of-order core aiming at desktop and server performance. Proof that "open" no longer means "slow".</p></div>
+</div></section>
+<section class="study-section" id="deck-comparing-the-cores"><div class="kicker">Part 4 · Out of order: BOOM, CVA6, XiangShan</div>
+<h2>The whole spectrum in one table</h2>
+<table class="tbl compact">
+<tr><th>Core</th><th>Style</th><th>Per cycle</th><th>Order</th><th>Use</th><th>Language</th></tr>
+<tr><td><b>SERV</b></td><td>bit-serial</td><td>&lt; 1</td><td>in</td><td>deeply embedded</td><td>Verilog</td></tr>
+<tr><td><b>PicoRV32</b></td><td>multicycle</td><td>&lt; 1</td><td>in</td><td>FPGA control</td><td>Verilog</td></tr>
+<tr><td><b>Rocket</b></td><td>5-stage pipeline</td><td>1</td><td>in</td><td>Linux-capable, MCU</td><td><span class="fwd">Chisel</span></td></tr>
+<tr><td><b>CVA6</b></td><td>6-stage pipeline</td><td>1</td><td>in (OoO finish)</td><td>industrial apps</td><td>SystemVerilog</td></tr>
+<tr><td><b>BOOM</b></td><td>OoO superscalar</td><td>2–4+</td><td>out</td><td>research, fast apps</td><td><span class="fwd">Chisel</span></td></tr>
+<tr><td><b>XiangShan</b></td><td>deep OoO superscalar</td><td>6+</td><td>out</td><td>server, desktop</td><td><span class="fwd">Chisel</span></td></tr>
+</table>
+<p>Read it top to bottom and you are reading this whole lab: multicycle → pipelined → out-of-order and superscalar, each step trading area for speed.</p></section>
+<section class="study-section" id="deck-generators-and-the-soc"><div class="pnum">05</div>
+<h2>Generators and the SoC</h2>
+<p>Not one design, but a program that writes a whole family of designs.</p></section>
+<section class="study-section" id="deck-chisel"><div class="kicker">Part 5 · Generators and the SoC</div>
+<h2>Chisel: hardware as a generator</h2>
+<div class="cols w32 mid">
+<pre class="code sm">// Chisel: parameters in, hardware out
+class MyConfig extends Config(
+  new WithNBigCores(2) ++     // 2 Rocket cores
+  new WithNBoomCores(1) ++    // + 1 BOOM core
+  new DefaultConfig
+)
+// → Verilog → simulate, or build a chip</pre>
+<div>
+<p><dfn>Chisel</dfn> is a hardware construction language embedded in Scala. You write a <dfn>generator</dfn>: a program that, given parameters, produces synthesizable Verilog.</p>
+<p>Change one number — cores, cache size, issue width — and regenerate.</p>
+</div>
+</div>
+<p><dfn>Chipyard</dfn> is Berkeley's framework that composes whole systems-on-chip from such generators: pick cores, caches, accelerators and peripherals, wire them over TileLink, then simulate, run on an FPGA, or take the design to manufacturing.</p></section>
+<section class="study-section" id="deck-extensions-as-hardware"><div class="kicker">Part 5 · Generators and the SoC</div>
+<h2>The extension letters are a shopping list</h2>
+<table class="tbl compact">
+<tr><th>Letter</th><th>Adds</th><th>Hardware it implies</th></tr>
+<tr><td class="mono">I</td><td>base integer</td><td>the core datapath — SERV and PicoRV32 stop here</td></tr>
+<tr><td class="mono">M</td><td>multiply / divide</td><td>a multiplier and a (usually multicycle) divider</td></tr>
+<tr><td class="mono">A</td><td>atomics</td><td>support in the caches and coherence protocol</td></tr>
+<tr><td class="mono">F / D</td><td>floating point</td><td>a floating-point unit and its own register file</td></tr>
+<tr><td class="mono">C</td><td>16-bit compressed</td><td>an extra alignment path in fetch and decode</td></tr>
+<tr><td class="mono">V</td><td>vectors</td><td>a vector register file and parallel lanes: data-level parallelism</td></tr>
+</table>
+<p>RV64GC = I, M, A, F, D plus C: the baseline for a Linux-class processor.</p></section>
+<section class="study-section" id="deck-from-core-to-soc"><div class="kicker">Part 5 · Generators and the SoC</div>
+<h2>From core to system-on-chip</h2>
+<div class="fig">
+<svg height="330" viewbox="0 0 1120 330" width="1120">
+<rect class="box brand" height="70" rx="12" width="230" x="20" y="20"></rect><text class="lbl sm b" text-anchor="middle" x="135" y="48">Rocket / BOOM core</text><text class="lbl xs" text-anchor="middle" x="135" y="72">with L1 caches</text>
+<path class="wire" d="M135,90 L135,140"></path>
+<rect class="box hi" height="56" rx="12" width="1080" x="20" y="140"></rect><text class="lbl sm b" text-anchor="middle" x="560" y="168">TileLink system bus</text>
+<path class="wire" d="M380,196 L380,240 M640,196 L640,240 M900,196 L900,240"></path>
+<rect class="box accent" height="70" rx="10" width="200" x="280" y="240"></rect><text class="lbl sm b" text-anchor="middle" x="380" y="268">L2 cache → DRAM</text><text class="lbl xs" text-anchor="middle" x="380" y="292">coherent traffic</text>
+<rect class="box accent" height="70" rx="10" width="200" x="540" y="240"></rect><text class="lbl sm b" text-anchor="middle" x="640" y="268">bridge → AXI</text><text class="lbl xs" text-anchor="middle" x="640" y="292">accelerators, PCIe</text>
+<rect class="box good" height="70" rx="10" width="200" x="800" y="240"></rect><text class="lbl sm b" text-anchor="middle" x="900" y="268">peripheral bus</text><text class="lbl xs" text-anchor="middle" x="900" y="292">GPIO · UART · SPI · I²C</text>
+</svg>
+</div>
+<p>Rich, coherent traffic rides the system bus; a register write to a UART rides a lightweight peripheral bus. Two fabrics on one chip, chosen by bandwidth and coherence needs.</p></section>
+<section class="study-section" id="deck-check-yourself"><div class="kicker">Part 5 · Generators and the SoC</div>
+<h2>Check yourself</h2>
+<p class="q">SERV and BOOM give bit-for-bit identical results on the same RV32I program, yet BOOM can be thousands of times faster. Where does the difference come from?</p>
+<div><span class="lbl">Answer</span>
+<p>Entirely from the microarchitecture: a 32-bit datapath instead of 1 bit, pipelining instead of multicycle, several instructions per cycle, out-of-order issue, branch prediction and caches. The ISA says <i>what</i>; the microarchitecture decides <i>how fast</i>.</p>
+</div></section>
+<section class="study-section" id="deck-recap"><div class="kicker">Part 5 · Generators and the SoC</div>
+<h2>Recap</h2>
+<ul>
+<li>Open RISC-V cores span the whole design space, which makes them the ideal specimens for studying microarchitecture.</li>
+<li>SERV (bit-serial) and PicoRV32 (multicycle) trade cycles for tiny area.</li>
+<li>Rocket is the classic 5-stage in-order pipeline; CVA6 a 6-stage industrial one.</li>
+<li>BOOM and XiangShan are out-of-order superscalar cores whose stages map onto renaming, issue queues and the reorder buffer.</li>
+<li>Chisel generators and Chipyard turn parameters into whole systems-on-chip, wired over TileLink, bridged to AXI and a peripheral bus.</li>
+</ul></section></div></main></div><script src="../assets/app.js"></script></body></html>
